@@ -1,8 +1,13 @@
 package brownshome.netcode.annotationprocessor;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -14,13 +19,21 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Types;
+import javax.tools.Diagnostic.Kind;
 
-import brownshome.netcode.annotation.*;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
+
+import brownshome.netcode.annotation.NetworkDirection;
+import brownshome.netcode.annotation.PacketDeclaration;
+import brownshome.netcode.annotation.PacketType;
 
 public class NetworkSchemaGenerator extends AbstractProcessor {
 	private Types typeUtils;
 	private TypeElement packetType;
 	private Filer filer;
+	private VelocityEngine engine;
+	private String schemaTemplate;
 	
 	@Override
 	public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -29,6 +42,15 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 		typeUtils = processingEnv.getTypeUtils();
 		packetType = processingEnv.getElementUtils().getTypeElement(processingEnv.getElementUtils().getModuleElement("brownshome.netcode"), "brownshome.netcode.Packet");
 		filer = processingEnv.getFiler();
+		
+		engine = new VelocityEngine();
+		engine.init();
+		
+		try(BufferedReader reader = new BufferedReader(new InputStreamReader(NetworkSchemaGenerator.class.getResourceAsStream("/velocity/NetworkSchemaTemplate.vm")))) {
+			schemaTemplate = reader.lines().collect(Collectors.joining(System.lineSeparator()));
+		} catch (IOException e) {
+			processingEnv.getMessager().printMessage(Kind.ERROR, "Unable to read the schema template.");
+		}
 	}
 	
 	@Override
@@ -38,25 +60,38 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 			//Check if it is a subclass of Packet.class, if not, error.
 			//Check if it has a no argument constructor.
 
+			Collection<PacketDeclaration> collection = new ArrayList<>();
 			//Create the packet description.
 			for(Element element : roundEnv.getElementsAnnotatedWith(PacketType.class)) {
-				PacketTypeDescription description = createPacketTypeDescriptor(element);
-				
-				try(Writer writer = filer.createSourceFile("brownshome.netcode.generated.NetworkSchema").openWriter()) {
-					writer.write("package brownshome.netcode.generated; @javax.annotation.processing.Generated(\"brownshome.netcode.annotationprocessor.NetworkSchemaGenerator\") public class NetworkSchema { public int x; public String name = \"" + description.name + "\"; }");
-				} catch (IOException e) {
-					throw new PacketCompileException("Unable to generate network schema: " + e.getMessage());
-				}
+				collection.add(createPacketTypeDescriptor(element));
 			}
 
+			if(collection.size() == 0) {
+				return true;
+			}
+			
+			String schemaName = "Game";
+			try(Writer writer = filer.createSourceFile("brownshome.netcode.generated." + schemaName + "NetworkSchema").openWriter()) {
+				VelocityContext context = new VelocityContext();
+				context.put("schemaName", schemaName);
+				context.put("types", collection);
+				
+				engine.evaluate(context, writer, "NetworkSchema", schemaTemplate);
+			} catch (IOException e) {
+				throw new PacketCompileException("Unable to generate network schema: " + e.getMessage());
+			}
+			
 			return true;
 		} catch(PacketCompileException pce) {
 			pce.raiseError(processingEnv);
 			return false;
+		} catch(Exception e) {
+			new PacketCompileException("Unknown error: " + e.getMessage()).raiseError(processingEnv);
+			return false;
 		}
 	}
 
-	private PacketTypeDescription createPacketTypeDescriptor(Element element) throws PacketCompileException {
+	private PacketDeclaration createPacketTypeDescriptor(Element element) throws PacketCompileException {
 		if(element.getKind() != ElementKind.CLASS) {
 			throw new PacketCompileException("Only classes can be annotated with @PacketType", element);
 		}
@@ -71,7 +106,7 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 			throw new PacketCompileException("Only classes extending Packet can be annotated with @PacketType", element);
 		}
 		
-		return new PacketTypeDescription(null, 0, true, true, NetworkDirection.Sender.BOTH, "");
+		return new PacketDeclaration(null, 0, true, true, NetworkDirection.Sender.BOTH, "", classType.getQualifiedName().toString());
 	}
 
 	private boolean doesExtendPacket(TypeElement classType) {

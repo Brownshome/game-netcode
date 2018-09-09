@@ -1,3 +1,4 @@
 dependencies {
 	implementation project(':annotation')
+	implementation group: 'org.apache.velocity', name: 'velocity', version: '1.7'
 }

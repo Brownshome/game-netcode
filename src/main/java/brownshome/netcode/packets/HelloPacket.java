@@ -5,7 +5,8 @@ import java.nio.ByteBuffer;
 import brownshome.netcode.Connection;
 import brownshome.netcode.Packet;
 import brownshome.netcode.annotation.PacketType;
-import brownshome.netcode.generated.NetworkSchema;
+
+import brownshome.netcode.generated.GameNetworkSchema;
 
 @PacketType("Hello")
 public class HelloPacket extends Packet {
@@ -20,6 +21,6 @@ public class HelloPacket extends Packet {
 		connection.send(new HelloPacket());
 		System.out.println("Hello!");
 		
-		String x = new NetworkSchema().name;
+		new GameNetworkSchema();
 	}
 }
