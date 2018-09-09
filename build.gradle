@@ -1,0 +1,15 @@
+plugins {
+	id 'com.zyxist.chainsaw' version '0.3.1'
+}
+
+allprojects { 
+	apply plugin: 'java-library'
+	apply plugin: 'com.zyxist.chainsaw'
+	
+	javaModule.allowModuleNamingViolations = true
+}
+
+dependencies {
+	implementation project(':annotation')
+	annotationProcessor project(':processor')
+}
