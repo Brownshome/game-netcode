@@ -1,0 +1,19 @@
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import java.nio.file.Paths
+
+eclipse {
+	classpath {
+		file.beforeMerged { cp ->
+			def folder = new SourceFolder(outputDirString(), null)
+			folder.includes = ['**/*NetworkSchema.java']
+			
+			cp.entries.add( folder )
+		}
+	}
+}
+
+String outputDirString() {
+	Paths.get("$buildDir/..").relativize(
+		sourceSets.main.java.outputDir.toPath()
+	)
+}

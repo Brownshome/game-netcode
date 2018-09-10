@@ -5,3 +5,5 @@ dependencies {
 	
 	annotationProcessor project(':processor')
 }
+
+apply from: '../build-scripts/eclipseIncludeGenerated.gradle'
