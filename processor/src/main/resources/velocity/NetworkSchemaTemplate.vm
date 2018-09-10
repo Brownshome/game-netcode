@@ -1,27 +1,53 @@
-package brownshome.netcode.generated;
+package ${schemapackage};
 
 import java.util.List;
-import java.util.Arrays;
+import java.util.ArrayList;
 
 import javax.annotation.processing.Generated;
 
 import brownshome.netcode.annotation.NetworkDirection.Sender;
-import brownshome.netcode.annotation.PacketDeclaration;
 
 import brownshome.netcode.NetworkSchema;
 import brownshome.netcode.PacketDefinition;
 
 @Generated("brownshome.netcode.annotationprocessor.NetworkSchemaGenerator")
-public class ${schemaName}NetworkSchema implements NetworkSchema {
-	private final List<PacketDefinition<?>> packetTypes = Arrays.asList(new PacketDefinition[] {
-#foreach( $type in $types )
-		new PacketDefinition<>(new PacketDeclaration("", ${type.Priority}, ${type.canFragment}, 
-				${type.Reliable}, Sender.${type.Sender}, "${type.handledBy}", "${type.ClassName}"), ${type.ClassName}::new),
+public class ${schemaname}NetworkSchema implements NetworkSchema {
+	private static final NetworkSchema INSTANCE = new ${schemaname}NetworkSchema();
+
+	private final List<PacketDefinition<?>> packetTypes = new ArrayList<>();
+	
+	public ${schemaname}NetworkSchema() {
+#foreach( $packet in ${schemapackets} )
+		packetTypes.add(${packet.Definition});
 #end
-	});
+	}
 	
 	@Override
 	public List<PacketDefinition<?>> getPacketTypes() {
 		return packetTypes;
+	}
+	
+	@Override
+	public String getFullName() {
+		return "${schema.package}.${schema.name}";
+	}
+	
+	@Override
+	public String getShortName() {
+		return "${schemaname}";
+	}
+	
+	@Override
+	public int getMajorVersion() {
+		return ${schemamajor};
+	}
+	
+	@Override
+	public int getMinorVersion() {
+		return ${schemaminor};
+	}
+	
+	public static NetworkSchema singleton() {
+		return INSTANCE;
 	}
 }

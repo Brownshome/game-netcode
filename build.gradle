@@ -1,9 +1,10 @@
 plugins {
 	id 'com.zyxist.chainsaw' version '0.3.1'
+	id 'eclipse'
 }
 
 allprojects { 
-	apply plugin: 'java-library'
+	apply plugin: (it.name == 'system-test' ? 'application' : 'java-library')
 	apply plugin: 'com.zyxist.chainsaw'
 	
 	javaModule.allowModuleNamingViolations = true
@@ -14,6 +15,8 @@ allprojects {
 }
 
 dependencies {
-	implementation project(':annotation')
+	implementation group: 'com.google.guava', name: 'guava', version: '26.0-jre'
+
+	api project(':annotation')
 	annotationProcessor project(':processor')
 }

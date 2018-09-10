@@ -1,0 +1,7 @@
+mainClassName = 'brownshome.netcode.systemtest.Main'
+
+dependencies {
+	implementation rootProject
+	
+	annotationProcessor project(':processor')
+}

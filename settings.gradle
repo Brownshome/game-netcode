@@ -1,1 +1,3 @@
-include 'annotation', 'processor'
+rootProject.name = 'netcode'
+
+include 'annotation', 'processor', 'system-test'
