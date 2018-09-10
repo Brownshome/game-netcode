@@ -26,6 +26,9 @@ public class Main {
 		
 		connection.connect();
 		
+		server.shutdown();
+		client.shutdown();
+		
 		server.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 		client.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 	}
