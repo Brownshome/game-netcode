@@ -78,4 +78,15 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 		
 		return protocol;
 	}
+
+	@Override
+	public void setProtocol(NetworkProtocol networkProtocol) {
+		this.protocol = networkProtocol;
+		
+		if(connected != null) {
+			((SettableFuture<Void>) connected).set(null);
+		} else {
+			connected = Futures.immediateFuture(null);
+		}
+	}
 }

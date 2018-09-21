@@ -63,4 +63,6 @@ public interface Connection<ADDRESS> {
 	ConnectionManager<ADDRESS, ? extends Connection<ADDRESS>> getConnectionManager();
 	
 	NetworkProtocol getProtocol();
+
+	void setProtocol(NetworkProtocol networkProtocol);
 }

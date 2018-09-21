@@ -26,11 +26,11 @@ public final class NetworkSchemaDTO {
 				schema.getFullName(), 
 				schema.getMajorVersion(), 
 				schema.getMinorVersion(), 
-				schema.getPacketTypes().stream().map(def -> def.name).collect(Collectors.toList())
+				schema.getPacketTypes().stream().map(def -> def.type.getName()).collect(Collectors.toList())
 		);
 	}
 	
-	private NetworkSchemaDTO(String name, int major, int minor, List<String> packetNames) {
+	public NetworkSchemaDTO(String name, int major, int minor, List<String> packetNames) {
 		this.name = name;
 		this.major = major;
 		this.minor = minor;

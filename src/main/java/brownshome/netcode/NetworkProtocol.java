@@ -1,15 +1,33 @@
 package brownshome.netcode;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import brownshome.netcode.packets.dto.NetworkSchemaDTO;
 
 public final class NetworkProtocol {
 	private final Connection<?> connection;
 	private final Map<NetworkSchema, Integer> schemaMinorVersion = new HashMap<>();
 	private final Map<Class<? extends Packet>, Integer> packetId = new HashMap<>();
 	
-	public NetworkProtocol(Connection<?> connection) {
+	@SuppressWarnings("unchecked")
+	public NetworkProtocol(Connection<?> connection, List<NetworkSchemaDTO> compatibleSchema) {
 		this.connection = connection;
+		
+		int id = 0;
+		GlobalNetworkProtocol global = connection.getConnectionManager().getGlobalProtocol();
+		for(NetworkSchemaDTO dto : compatibleSchema) {
+			schemaMinorVersion.put(global.getSchema(dto.name), dto.minor);
+			
+			for(String packet : dto.packetNames) {
+				try {
+					packetId.put((Class<? extends Packet>) Class.forName(packet), Integer.valueOf(id++));
+				} catch (ClassNotFoundException e) {
+					throw new NetworkException("Invalid schema handshake: " + e.getMessage(), connection);
+				}
+			}
+		}
 	}
 	
 	public boolean isSchemaSupported(NetworkSchema schema) {

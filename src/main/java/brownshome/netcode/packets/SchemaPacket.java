@@ -3,12 +3,17 @@ package brownshome.netcode.packets;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import brownshome.netcode.Connection;
+import brownshome.netcode.GlobalNetworkProtocol;
+import brownshome.netcode.NetworkException;
 import brownshome.netcode.NetworkSchema;
 import brownshome.netcode.NetworkUtils;
 import brownshome.netcode.Packet;
+import brownshome.netcode.PacketDefinition;
 import brownshome.netcode.annotation.PacketType;
 import brownshome.netcode.annotation.Reliable;
 import brownshome.netcode.packets.dto.NetworkSchemaDTO;
@@ -69,15 +74,54 @@ public final class SchemaPacket extends Packet {
 	@Override
 	public void handle(Connection<?> connection) {
 		//Compare all of the schema
-		List<String> packetAssignments = new ArrayList<>();
+		List<NetworkSchemaDTO> compatibleSchema = new ArrayList<>();
 		
-		addCompatablePackets(packetAssignments, baseSchema, BaseNetworkSchema.singleton());
+		NetworkSchemaDTO baseCompatability = compatable(baseSchema, BaseNetworkSchema.singleton());
+		
+		if (baseCompatability == null) {
+			throw new NetworkException("Base modules are not compatible", connection);
+		}
+		
+		compatibleSchema.add(baseCompatability);
+		
+		GlobalNetworkProtocol globalProtocol = connection.getConnectionManager().getGlobalProtocol();
+		for(NetworkSchemaDTO other : otherSchema) {
+			NetworkSchema schema = globalProtocol.getSchema(other.name);
+			
+			if(schema != null) {
+				NetworkSchemaDTO c = compatable(other, schema);
+				if (c != null) {
+					compatibleSchema.add(c);
+				}
+			}
+		}
+		
+		PacketAssignmentPacket packet = new PacketAssignmentPacket(compatibleSchema);
+		packet.handle(connection);
+		connection.send(packet);
 		
 		NetworkUtils.LOGGER.info("Received schema");
 	}
 
-	private void addCompatablePackets(List<String> packetAssignments, NetworkSchemaDTO remoteSchema, NetworkSchema localSchema) {
+	private NetworkSchemaDTO compatable(NetworkSchemaDTO remoteSchema, NetworkSchema localSchema) {
+		if(remoteSchema.major != localSchema.getMajorVersion()) {
+			return null;
+		}
 		
+		Set<String> remotePackets = new HashSet<>(remoteSchema.packetNames);
+		List<String> packets = new ArrayList<>();
+		
+		for(PacketDefinition<?> def : localSchema.getPacketTypes()) {
+			String name = def.type.getName();
+			
+			if(remotePackets.contains(name))
+				packets.add(name);
+		}
+		
+		return new NetworkSchemaDTO(remoteSchema.name, 
+				remoteSchema.major, 
+				Math.min(remoteSchema.minor, localSchema.getMinorVersion()),
+				packets);
 	}
 
 	@Override
