@@ -1,15 +1,10 @@
 package brownshome.netcode.annotation;
 
-import static java.lang.annotation.ElementType.TYPE;
-import static java.lang.annotation.RetentionPolicy.CLASS;
+import static java.lang.annotation.ElementType.METHOD;
 
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
-@Retention(CLASS)
-@Target(TYPE)
-@Inherited
+@Target(METHOD)
 /**
  * Indicates that this packet should be executed on the thread named by the annotation.
  * @author James Brown

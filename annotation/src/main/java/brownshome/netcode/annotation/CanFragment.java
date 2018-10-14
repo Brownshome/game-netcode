@@ -1,17 +1,12 @@
 package brownshome.netcode.annotation;
 
-import static java.lang.annotation.ElementType.TYPE;
-import static java.lang.annotation.RetentionPolicy.CLASS;
+import static java.lang.annotation.ElementType.METHOD;
 
 import java.lang.annotation.Documented;
-import java.lang.annotation.Inherited;
-import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
-@Retention(CLASS)
-@Target(TYPE)
+@Target(METHOD)
 @Documented
-@Inherited
 /** Indicates that this packet type can be fragmented. Sending a packet larger than the MTU
  * that does not have this property will result in an error.
  * @author James Brown
