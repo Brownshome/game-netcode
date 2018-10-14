@@ -18,3 +18,9 @@ And the following features:
 6. Custom connection types
 7. Multi-threaded handling
 8. Packet ordering guarantees
+
+## Annotation System
+
+The annotation system allows the user to define packets by defining a **handler**. A handler is a method that is annotated with the packet definition annotations. This may be a static method, a constructor, or an instance method in a class with a no-argument constructor.
+
+This method will be called by the networking engine when the packet is received. To send a packet a generated object with a name corresponding to the packet name annotation is constructed and then passed to the system.
