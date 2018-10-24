@@ -32,13 +32,13 @@ import brownshome.netcode.annotation.CanFragment;
 import brownshome.netcode.annotation.HandledBy;
 import brownshome.netcode.annotation.NetworkDirection;
 import brownshome.netcode.annotation.PacketSchema;
-import brownshome.netcode.annotation.PacketType;
-import brownshome.netcode.annotation.Priority;
-import brownshome.netcode.annotation.Reliable;
+import brownshome.netcode.annotation.DefinePacket;
+import brownshome.netcode.annotation.WithPriority;
+import brownshome.netcode.annotation.MakeReliable;
 
 public class NetworkSchemaGenerator extends AbstractProcessor {
 	private Types typeUtils;
-	private TypeElement packetType;
+	
 	private Filer filer;
 	private VelocityEngine engine;
 	private Template template;
@@ -109,7 +109,7 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 			}
 			
 			//Create the packet description.
-			for(Element element : roundEnv.getElementsAnnotatedWith(PacketType.class)) {
+			for(Element element : roundEnv.getElementsAnnotatedWith(DefinePacket.class)) {
 				PacketDeclaration decl = createPacketTypeDescriptor(element);
 
 				Schema schema = schemas.get(decl.getSchema());
@@ -163,7 +163,7 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 			throw new PacketCompileException("Only classes extending Packet can be annotated with @PacketType", element);
 		}
 		
-		PacketType packetType = classType.getAnnotation(PacketType.class);
+		DefinePacket packetType = classType.getAnnotation(DefinePacket.class);
 		if(packetType == null)
 			throw new PacketCompileException("No @PacketType found.", element);
 		
@@ -171,7 +171,7 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 		if(direction == null)
 			throw new PacketCompileException("No @NetworkDirection found.", element);
 		
-		Priority priority = classType.getAnnotation(Priority.class);
+		WithPriority priority = classType.getAnnotation(WithPriority.class);
 		if(priority == null)
 			throw new PacketCompileException("No @Priority found.", element);
 		
@@ -180,7 +180,7 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 			throw new PacketCompileException("No @HandledBy found.", element);
 		
 		boolean canFragment = classType.getAnnotation(CanFragment.class) != null;
-		boolean reliable = classType.getAnnotation(Reliable.class) != null;
+		boolean reliable = classType.getAnnotation(MakeReliable.class) != null;
 		
 		return new PacketDeclaration(findSchema(classType), packetType.value(), priority.value(), canFragment, 
 				reliable, direction.value(), handler.value(), classType.getQualifiedName().toString());

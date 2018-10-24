@@ -3,23 +3,21 @@ package brownshome.netcode.systemtest;
 import java.util.List;
 
 import brownshome.netcode.Connection;
-import brownshome.netcode.GlobalNetworkProtocol;
-import brownshome.netcode.MemoryConnectionManager;
-import brownshome.netcode.systemtest.packets.TestNetworkSchema;
-import brownshome.netcode.systemtest.packets.TestPacket;
+import brownshome.netcode.Schema;
+import brownshome.netcode.memory.MemoryConnectionManager;
+import brownshome.netcode.packets.BaseSchema;
 
 public class Main {
 	public static void main(String[] args) throws InterruptedException {
-		GlobalNetworkProtocol protocol = new GlobalNetworkProtocol(List.of(TestNetworkSchema.singleton()));
+		List<Schema> protocol = List.of(new BaseSchema());
 		MemoryConnectionManager serverConnectionManager = new MemoryConnectionManager(protocol);
 		MemoryConnectionManager clientConnectionManager = new MemoryConnectionManager(protocol);
 		
-		serverConnectionManager.registerExecutor("DefaultHandler", Runnable::run);
-		clientConnectionManager.registerExecutor("DefaultHandler", Runnable::run);
+		serverConnectionManager.registerExecutor("default", Runnable::run);
+		clientConnectionManager.registerExecutor("default", Runnable::run);
 		
-		Connection<?> connection = clientConnectionManager.getConnection(serverConnectionManager);
+		Connection<?> connection = clientConnectionManager.getOrCreateConnection(serverConnectionManager);
 		
 		connection.connect();
-		connection.send(new TestPacket("Message"));
 	}
 }

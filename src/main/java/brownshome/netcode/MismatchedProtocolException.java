@@ -1,7 +1,7 @@
 package brownshome.netcode;
 
 public class MismatchedProtocolException extends NetworkException {
-	public MismatchedProtocolException(NetworkSchema schema, Connection<?> connection) {
+	public MismatchedProtocolException(Schema schema, Connection<?> connection) {
 		super(String.format("Schema '%s' is not supported by this connection", schema), connection);
 	}
 	

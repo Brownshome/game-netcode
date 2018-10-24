@@ -1,15 +1,16 @@
 package brownshome.netcode.memory;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.SettableFuture;
 
 import brownshome.netcode.Connection;
-import brownshome.netcode.MemoryConnectionManager;
-import brownshome.netcode.NetworkProtocol;
 import brownshome.netcode.Packet;
-import brownshome.netcode.PacketDefinition;
+import brownshome.netcode.Protocol;
+import brownshome.netcode.packets.HelloPacket;
+import brownshome.netcode.packets.NegotiateProtocolPacket;
 
 public class MemoryConnection implements Connection<MemoryConnectionManager> {
 	private final MemoryConnectionManager other;
@@ -17,25 +18,37 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 	
 	private Future<Void> closed = null;
 	private Future<Void> connected = null;
-	private NetworkProtocol protocol = null;
+	
+	private Protocol protocol = null;
 	
 	public MemoryConnection(MemoryConnectionManager manager, MemoryConnectionManager other) {
 		this.other = other;
 		this.manager = manager;
+		
+		protocol = new Protocol(manager.schemas());
 	}
 
 	@Override
 	public Future<Void> send(Packet packet) {
-		SettableFuture<Void> result = SettableFuture.create();
+		ByteBuffer buffer = ByteBuffer.allocate(packet.size() + Integer.BYTES);
+		buffer.putInt(protocol.computePacketID(packet));
+		packet.write(buffer);
+		buffer.flip();
 		
-		PacketDefinition<?> definition = manager.getGlobalProtocol().getDefinition(packet);
+		return other.getOrCreateConnection(manager).receive(buffer);
+	}
+
+	/** An internal method that receives and executes an incoming packet. */
+	private Future<Void> receive(ByteBuffer buffer) {
+		SettableFuture<Void> future = SettableFuture.create();
+		Packet incoming = protocol.createPacket(buffer);
 		
-		other.executeOn(() -> {
-			packet.handle(other.getConnection(manager));
-			result.set(null);
-		}, definition.handledBy);
+		manager.executeOn(() -> {
+			protocol.handle(this, incoming);
+			future.set(null);
+		}, incoming.handledBy());
 		
-		return result;
+		return future;
 	}
 
 	@Override
@@ -53,7 +66,9 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 		assert connected == null;
 		
 		connected = SettableFuture.create();
-		send(getConnectionManager().getGlobalProtocol().getConnectPacket());
+		
+		send(new HelloPacket(4));
+		send(new NegotiateProtocolPacket(manager.schemas()));
 		
 		return connected;
 	}
@@ -73,14 +88,14 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 	}
 
 	@Override
-	public NetworkProtocol getProtocol() {
+	public Protocol getProtocol() {
 		assert connected != null && connected.isDone();
 		
 		return protocol;
 	}
 
 	@Override
-	public void setProtocol(NetworkProtocol networkProtocol) {
+	public void setProtocol(Protocol networkProtocol) {
 		this.protocol = networkProtocol;
 		
 		if(connected != null) {

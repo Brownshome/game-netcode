@@ -62,7 +62,7 @@ public interface Connection<ADDRESS> {
 	
 	ConnectionManager<ADDRESS, ? extends Connection<ADDRESS>> getConnectionManager();
 	
-	NetworkProtocol getProtocol();
+	Protocol getProtocol();
 
-	void setProtocol(NetworkProtocol networkProtocol);
+	void setProtocol(Protocol networkProtocol);
 }

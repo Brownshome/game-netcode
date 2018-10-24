@@ -1,20 +1,68 @@
 package brownshome.netcode;
 
-import java.nio.ByteBuffer;
+import brownshome.netcode.annotation.WithDirection.Direction;
+import brownshome.netcode.annotation.converter.Networkable;
 
-import brownshome.netcode.annotation.*;
-import brownshome.netcode.annotation.NetworkDirection.Sender;
-
-/** Defines a packet. This packet has two methods that write and read from the
- * data stream. Subclasses of this class must define a single argument constructor
- * that takes a ByteBuffer. */
-@NetworkDirection(Sender.BOTH)
-@Priority(0)
-@HandledBy("DefaultHandler")
-public abstract class Packet {
-	public abstract void writeTo(ByteBuffer buffer);
+/** This class is extended by generated packet classes. It will usually not be needed to be extended manually. */
+public abstract class Packet implements Networkable {
+	private final String handledBy;
+	private final String schemaName;
+	private final int packetId;
 	
-	/** Returns a number always greater than the packet in size, in bytes. */
-	public abstract int size();
-	public abstract void handle(Connection<?> connection);
+	protected Packet(String schemaName, String handler, int packetId) {
+		this.schemaName = schemaName;
+		this.handledBy = handler;
+		this.packetId = packetId;
+	}
+	
+	/** 
+	 * Handles the packet. This method will handle the packet on this thread. The version number may be used to enforce
+	 * compatibility with older versions.
+	 **/
+	public abstract void handle(Connection<?> connection, int minorVersion) throws NetworkException;
+	
+	/** Returns an ID for this packet. This ID must be unique per schema. The IDs should be allocated starting from 0 incrementing for each packet. */
+	public final int packetID() {
+		return packetId;
+	}
+	
+	/** Returns the long name of the schema that this packet belongs to. */
+	public final String schemaName() {
+		return schemaName;
+	}
+
+	/** Returns the name of the handler that will handle this packet. */
+	public final String handledBy() {
+		return handledBy;
+	}
+	
+	@Override
+	public boolean isSizeConstant() {
+		return true;
+	}
+	
+	@Override
+	public boolean isSizeExact() {
+		return true;
+	}
+	
+	/** Returns true if this packet can be fragmented. */
+	public boolean canFragment() {
+		return false;
+	}
+	
+	/** Returns true if this packet will always reach the endpoint. */
+	public boolean reliable() {
+		return false;
+	}
+	
+	/** Returns the direction that this packet will be sent. */
+	public Direction direction() {
+		return Direction.BOTH;
+	}
+	
+	/** Returns the priority of this packet, higher priorities will be sent first. */
+	public int priority() {
+		return 0;
+	}
 }

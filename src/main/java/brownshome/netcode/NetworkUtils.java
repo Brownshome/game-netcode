@@ -7,10 +7,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.logging.Logger;
+
+import brownshome.netcode.annotation.converter.Converter;
+import brownshome.netcode.annotation.converter.Networkable;
+import brownshome.netcode.sizing.NetworkObjectSize;
 
 public final class NetworkUtils {
-	public static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	public static final NetworkObjectSize INTEGER_SIZE = new NetworkObjectSize(Integer.BYTES, true, true);
+	
+	/** This constant of 3 occurs when the char 0xFFFF is encoded. */
+	private static final int MAXIMUM_UTF8_BYTES_PER_CHAR = 3;
 	
 	private NetworkUtils() {  }
 
@@ -34,13 +40,17 @@ public final class NetworkUtils {
 		return new String(array, StandardCharsets.UTF_8);
 	}
 
-	/** Reads a length prefixed list, the list will be modifiable. */
-	public static <T> List<T> readList(ByteBuffer buffer, Function<ByteBuffer, T> itemFunc) {
+	/** Reads a length prefixed list, the list will be modifiable. The function must read at least one byte from the buffer for each list item. */
+	public static <T> List<T> readList(ByteBuffer buffer, Function<? super ByteBuffer, ? extends T> itemFunc) {
 		int length = buffer.getInt();
+		
+		if(length > buffer.remaining()) {
+			throw new IllegalArgumentException("Not enough data to build a list of length " + length);
+		}
 		
 		List<T> list = new ArrayList<>(length);
 		
-		for(int i = 0; i < list.size(); i++) {
+		for(int i = 0; i < length; i++) {
 			list.add(itemFunc.apply(buffer));
 		}
 		
@@ -54,7 +64,7 @@ public final class NetworkUtils {
 		buffer.put(array);
 	}
 
-	public static <T> void writeCollection(ByteBuffer buffer, Collection<T> items, BiConsumer<ByteBuffer, T> itemFunc) {
+	public static <T> void writeCollection(ByteBuffer buffer, Collection<T> items, BiConsumer<? super ByteBuffer, ? super T> itemFunc) {
 		buffer.putInt(items.size());
 		
 		for(T t : items) {
@@ -63,10 +73,26 @@ public final class NetworkUtils {
 	}
 	
 	/**
-	 * Calculates the length of a stored String not include the header. This method allocates the string array, and
-	 * so is not particularly fast.
+	 * Calculates the length of a stored String including the header
 	 */
-	public static int calculateLength(String s) {
-		return s.getBytes(StandardCharsets.UTF_8).length;
+	public static NetworkObjectSize calculateSize(String s) {
+		return new NetworkObjectSize(s.length() * MAXIMUM_UTF8_BYTES_PER_CHAR + Integer.BYTES, false, false);
+	}
+	
+	/**
+	 * Calculates the length of a stored list including the header
+	 */
+	public static NetworkObjectSize calculateSize(Collection<? extends Networkable> collection) {
+		NetworkObjectSize rawList = NetworkObjectSize.combine(collection.stream().map(NetworkObjectSize::new)::iterator);
+		
+		return NetworkObjectSize.combine(INTEGER_SIZE, rawList).nonConstant();
+	}
+
+	public static <T> NetworkObjectSize calculateSize(Converter<T> converter, Collection<? extends T> collection) {
+		return NetworkObjectSize
+				.combine(collection.stream()
+					.map(s -> new NetworkObjectSize(converter, s))
+					.reduce(NetworkObjectSize.IDENTITY, NetworkObjectSize::combine))
+				.nonConstant();
 	}
 }

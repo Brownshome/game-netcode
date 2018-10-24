@@ -1,5 +1,6 @@
 package brownshome.netcode;
 
+import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
@@ -11,10 +12,11 @@ public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRES
 	 * Gets a connection to an address.
 	 * @return A connection object. This connection may not have been connected.
 	 **/
-	CONNECTION getConnection(ADDRESS address);
+	CONNECTION getOrCreateConnection(ADDRESS address);
 	
 	/** Registers an executor that incoming packets can be executed on. */
 	void registerExecutor(String name, Executor executor);
 
-	GlobalNetworkProtocol getGlobalProtocol();
+	/** Returns a list of all schemas that should be used with this connection. */
+	List<Schema> schemas();
 }

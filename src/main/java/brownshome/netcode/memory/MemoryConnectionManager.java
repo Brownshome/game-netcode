@@ -1,30 +1,27 @@
-package brownshome.netcode;
+package brownshome.netcode.memory;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-import brownshome.netcode.memory.MemoryConnection;
+import brownshome.netcode.ConnectionManager;
+import brownshome.netcode.Schema;
 
 /** The address of a memory connection is the pipe that it sends data into. */
 public class MemoryConnectionManager implements ConnectionManager<MemoryConnectionManager, MemoryConnection> {
-	private final GlobalNetworkProtocol protocol;
+	private final List<Schema> schema;
 	
 	private final Map<String, Executor> executors = new HashMap<>();
 	private final Map<MemoryConnectionManager, MemoryConnection> connections = new HashMap<>();
 	
-	public MemoryConnectionManager(GlobalNetworkProtocol protocol) {
-		this.protocol = protocol;
+	public MemoryConnectionManager(List<Schema> schema) {
+		this.schema = schema;
 	}
 	
 	@Override
-	public MemoryConnection getConnection(MemoryConnectionManager other) {
+	public MemoryConnection getOrCreateConnection(MemoryConnectionManager other) {
 		return connections.computeIfAbsent(other, o -> new MemoryConnection(this, other));
-	}
-
-	@Override
-	public GlobalNetworkProtocol getGlobalProtocol() {
-		return protocol;
 	}
 
 	@Override
@@ -34,5 +31,10 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 
 	public void executeOn(Runnable runner, String thread) {
 		executors.get(thread).execute(runner);
+	}
+
+	@Override
+	public List<Schema> schemas() {
+		return schema;
 	}
 }

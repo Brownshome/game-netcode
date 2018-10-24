@@ -12,10 +12,14 @@ import java.lang.annotation.Target;
  * violate this will result in errors.
  * @author James Brown
  */
-public @interface NetworkDirection {
-	public enum Sender {
-		CLIENT, SERVER, BOTH
+public @interface WithDirection {
+	public enum Direction {
+		/** The side that initiated the connection */
+		TO_CLIENT, 
+		/** The side that responded to the connection */
+		TO_SERVER,
+		BOTH
 	}
-
-	Sender value();
+	
+	Direction value();
 }

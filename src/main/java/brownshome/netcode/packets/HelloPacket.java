@@ -2,26 +2,38 @@ package brownshome.netcode.packets;
 
 import java.nio.ByteBuffer;
 
+import javax.annotation.processing.Generated;
+
 import brownshome.netcode.Connection;
+import brownshome.netcode.NetworkException;
 import brownshome.netcode.Packet;
-import brownshome.netcode.annotation.PacketType;
 
-@PacketType("Hello")
-public class HelloPacket extends Packet {
-	HelloPacket(ByteBuffer buffer) {  }
-	public HelloPacket() {  }
+@Generated("")
+public final class HelloPacket extends Packet {
+	private final int numberOfWaves;
 	
-	@Override
-	public void writeTo(ByteBuffer buffer) {  }
-
-	@Override
-	public void handle(Connection<?> connection) {
-		System.out.println("Hello!");
-		connection.send(new HelloPacket());
+	public HelloPacket(int numberOfWaves) {
+		super(BaseSchema.FULL_NAME, "default", 0);
+		
+		this.numberOfWaves = numberOfWaves;
+	}
+	
+	protected HelloPacket(ByteBuffer data) {
+		this(data.getInt());
 	}
 	
 	@Override
+	public void write(ByteBuffer buffer) {
+		buffer.putInt(numberOfWaves);
+	}
+
+	@Override
 	public int size() {
-		return 0;
+		return Integer.BYTES;
+	}
+
+	@Override
+	public void handle(Connection<?> connection, int minorVersion) throws NetworkException {
+		BasePackets.sayHelloBack(connection, numberOfWaves);
 	}
 }
