@@ -23,7 +23,7 @@ public final class NegotiateProtocolPacket extends Packet {
 		this.schemaData = schemaData;
 		this.schemaConverter = new Schema.SchemaConverter();
 		
-		NetworkObjectSize schemaSize = NetworkUtils.calculateSize(schemaData, s -> new NetworkObjectSize(schemaConverter, s));
+		NetworkObjectSize schemaSize = NetworkUtils.calculateSize(schemaConverter, schemaData);
 		
 		size = NetworkObjectSize.combine(schemaSize);
 	}

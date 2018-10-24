@@ -54,7 +54,7 @@ public final class Protocol implements Networkable {
 		}
 		
 		Converter<Schema> converter = new Schema.SchemaConverter();
-		networkSizeData = NetworkUtils.calculateSize(converter, schema);
+		networkSizeData = NetworkUtils.calculateSize(schema, s -> new NetworkObjectSize(converter, s));
 	}
 	
 	public int computePacketID(Packet packet) {

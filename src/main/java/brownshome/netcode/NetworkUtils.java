@@ -82,17 +82,11 @@ public final class NetworkUtils {
 	/**
 	 * Calculates the length of a stored list including the header
 	 */
-	public static NetworkObjectSize calculateSize(Collection<? extends Networkable> collection) {
-		NetworkObjectSize rawList = NetworkObjectSize.combine(collection.stream().map(NetworkObjectSize::new)::iterator);
+	public static <T> NetworkObjectSize calculateSize(Collection<T> collection, Function<? super T, NetworkObjectSize> converter) {
+		NetworkObjectSize rawList = collection.stream()
+				.map(converter::apply)
+				.reduce(NetworkObjectSize.IDENTITY, NetworkObjectSize::combine);
 		
 		return NetworkObjectSize.combine(INTEGER_SIZE, rawList).nonConstant();
-	}
-
-	public static <T> NetworkObjectSize calculateSize(Converter<T> converter, Collection<? extends T> collection) {
-		return NetworkObjectSize
-				.combine(collection.stream()
-					.map(s -> new NetworkObjectSize(converter, s))
-					.reduce(NetworkObjectSize.IDENTITY, NetworkObjectSize::combine))
-				.nonConstant();
 	}
 }
