@@ -26,12 +26,8 @@ public final class ${schema.shortName()}Schema extends Schema {
 	}
 
 	private static List<Function<ByteBuffer, Packet>> createPacketList(int minorVersion) {
-		switch(minorVersion) {
-		case 0:
-			return List.of(#foreach( $packet in $schema.packetDefinitions() )${packet.name()}Packet::new#if( ! $foreach.last ), #{end}#{end});
-		default:
-			throw new IllegalArgumentException(String.format("Invalid minor version number, valid numbers are [0, %d]", MINOR_VERSION));
-		}
+	    // TODO create a system for varying packet IDs
+		return List.of(#foreach( $packet in $schema.packetDefinitions() )${packet.name()}Packet::new#if( ! $foreach.last ), #{end}#{end});
 	}
 
 	@Override

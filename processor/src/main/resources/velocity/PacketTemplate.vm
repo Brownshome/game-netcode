@@ -8,9 +8,8 @@ import brownshome.netcode.Connection;
 import brownshome.netcode.NetworkException;
 import brownshome.netcode.NetworkUtils;
 import brownshome.netcode.Packet;
-import brownshome.netcode.Schema;
-import brownshome.netcode.annotation.converter.Converter;
 import brownshome.netcode.sizing.NetworkObjectSize;
+import brownshome.netcode.annotation.WithDirection.Direction;
 
 public final class ${packet.name()}Packet extends Packet {
 #foreach ( $parameter in $packet.parameters() )
@@ -72,5 +71,29 @@ public final class ${packet.name()}Packet extends Packet {
 	@Override
 	public void handle(Connection<?> connection, int minorVersion) throws NetworkException {
 		${packet.executionExpression()};
+	}
+
+#if ( $packet.canFragment() )
+	@Override
+	public boolean canFragment() {
+		return false;
+	}
+#end
+
+#if ( $packet.isReliable() )
+	@Override
+	public boolean isReliable() {
+		return true;
+	}
+#end
+
+	@Override
+	public int priority() {
+		return $packet.priority();
+	}
+
+	@Override
+	public Direction direction() {
+		return Direction.${packet.direction()};
 	}
 }
