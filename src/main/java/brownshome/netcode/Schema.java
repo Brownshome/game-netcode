@@ -95,7 +95,12 @@ public abstract class Schema {
 		
 		return constructor.apply(data);
 	}
-	
+
+	@Override
+	public String toString() {
+		return String.format("%s (%d.%d)", shortName(), majorVersion(), minorVersion());
+	}
+
 	public final String shortName() { return shortName; }
 	public final String fullName() { return fullName; }
 	

@@ -106,6 +106,8 @@ local.properties
 # .idea/*.iml
 # .idea/modules
 
+**/generated/
+
 # CMake
 cmake-build-*/
 
@@ -193,3 +195,6 @@ gradle-app.setting
 
 
 # End of https://www.gitignore.io/api/java,gradle,eclipse,intellij
+*.iml
+
+netcode\.ipr

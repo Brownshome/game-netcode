@@ -90,6 +90,11 @@ public final class Protocol implements Networkable {
 		packet.handle(connection, schema.minorVersion());
 	}
 
+	@Override
+	public String toString() {
+		return String.format("Protocol %s", nameToSchemaMapping.values());
+	}
+
 	/* ****************** NETWORKABLE ****************** */
 	
 	/** This constructor creates a protocol from an incoming packet of data. */

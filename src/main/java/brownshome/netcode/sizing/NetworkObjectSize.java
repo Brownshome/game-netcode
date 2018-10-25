@@ -73,4 +73,9 @@ public final class NetworkObjectSize {
 	public NetworkObjectSize nonConstant() {
 		return new NetworkObjectSize(size, exact, false);
 	}
+
+	@Override
+	public String toString() {
+		return Integer.toString(size);
+	}
 }
