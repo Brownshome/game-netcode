@@ -19,7 +19,7 @@ public class CustomConverter implements ConverterExpression {
 
 	@Override
 	public String write(PacketParameter parameter, String bufferName) {
-		return String.format("%1$sConverter.write(%2#s, %1$sData)", parameter.name(), bufferName);
+		return String.format("%s.write(%s, %s)", parameter.converterName(), bufferName, parameter.dataName());
 	}
 
 	@Override
@@ -29,6 +29,6 @@ public class CustomConverter implements ConverterExpression {
 
 	@Override
 	public String size(PacketParameter parameter) {
-		return String.format("%1$sConverter.size(%1$sData)", parameter.name());
+		return String.format("new NetworkObjectSize(%s, %s)", parameter.converterName(), parameter.dataName());
 	}
 }

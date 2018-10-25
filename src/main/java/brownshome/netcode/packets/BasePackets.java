@@ -13,6 +13,7 @@ import brownshome.netcode.annotation.ConnectionParam;
 import brownshome.netcode.annotation.DefinePacket;
 import brownshome.netcode.annotation.WithDirection;
 import brownshome.netcode.annotation.WithDirection.Direction;
+import brownshome.netcode.annotation.converter.UseConverter;
 
 /** This class contains all of the packets used by the base protocol. */
 public final class BasePackets {
@@ -30,7 +31,7 @@ public final class BasePackets {
 	
 	@DefinePacket(name = "NegotiateProtocol")
 	@WithDirection(Direction.TO_SERVER)
-	public static void sendProtocolBack(@ConnectionParam Connection<?> connection, List<Schema> schemas) {
+	public static void sendProtocolBack(@ConnectionParam Connection<?> connection, @UseConverter(Schema.SchemaConverter.class) List<Schema> schemas) {
 		Map<String, Schema> supportedSchemas = new HashMap<>();
 		
 		for(Schema s : connection.getConnectionManager().schemas()) {

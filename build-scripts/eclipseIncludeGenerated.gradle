@@ -5,7 +5,7 @@ eclipse {
 	classpath {
 		file.beforeMerged { cp ->
 			def folder = new SourceFolder(outputDirString(), null)
-			folder.includes = ['**/*NetworkSchema.java']
+			folder.includes = ['**/*Packet.java', '**/*Schema.java']
 			
 			cp.entries.add( folder )
 		}

@@ -17,10 +17,10 @@ public class BasicTypeConverter implements ConverterExpression {
 	public String write(PacketParameter parameter, String bufferName) {
 		String method;
 		
-		if(name.equals("Byte")) {
+		if(name.equals("byte")) {
 			method = "put";
 		} else {
-			method = "put" + name;
+			method = new StringBuilder("put").appendCodePoint(Character.toUpperCase(name.codePointAt(0))).append(name.substring(name.offsetByCodePoints(0, 1))).toString();
 		}
 		
 		return String.format("%s.%s(%sData)", bufferName, method, parameter.name());
@@ -30,10 +30,10 @@ public class BasicTypeConverter implements ConverterExpression {
 	public String read(PacketParameter parameter, String bufferName) {
 		String method;
 		
-		if(name.equals("Byte")) {
+		if(name.equals("byte")) {
 			method = "get";
 		} else {
-			method = "get" + name;
+			method = new StringBuilder("get").appendCodePoint(Character.toUpperCase(name.codePointAt(0))).append(name.substring(name.offsetByCodePoints(0, 1))).toString();
 		}
 		
 		return String.format("%s.%s()", bufferName, method);
@@ -41,6 +41,6 @@ public class BasicTypeConverter implements ConverterExpression {
 
 	@Override
 	public String size(PacketParameter parameter) {
-		return String.format("NetworkUtils.%s", name.toUpperCase());
+		return String.format("NetworkUtils.%s_SIZE", name.toUpperCase());
 	}
 }

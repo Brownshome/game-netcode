@@ -1,4 +1,5 @@
-package brownshome.netcode.packets;
+#set ( $schema = $packet.schema() )
+package ${packet.packageName()};
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -11,30 +12,46 @@ import brownshome.netcode.Schema;
 import brownshome.netcode.annotation.converter.Converter;
 import brownshome.netcode.sizing.NetworkObjectSize;
 
-public final class NegotiateProtocolPacket extends Packet {
-	private final List<Schema> schemaData;
-	private final Converter<Schema> schemaConverter;
-	
+public final class ${packet.name()}Packet extends Packet {
+#foreach ( $parameter in $packet.parameters() )
+#set( $converter = $parameter.converter() )
+	private final $parameter.type() ${parameter.dataName()};
+#if( $converter.type() )
+	private final $converter.type() ${parameter.converterName()};
+#end
+#end
+
 	private final NetworkObjectSize size;
 	
-	public NegotiateProtocolPacket(List<Schema> schemaData) {
-		super(BaseSchema.FULL_NAME, "default", 1);
+	public ${packet.name()}Packet(#foreach( $parameter in $packet.parameters() )$parameter.type() ${parameter.dataName()}#if( ! $foreach.last ), #{end}#{end}) {
+		super(${schema.shortName()}Schema.FULL_NAME, "${packet.handledBy()}", ${packet.id()});
 
-		this.schemaData = schemaData;
-		this.schemaConverter = new Schema.SchemaConverter();
+#foreach ( $parameter in $packet.parameters() )
+#set( $converter = $parameter.converter() )
+		this.${parameter.dataName()} = ${parameter.dataName()};
+#if( $converter.type() )
+		this.${parameter.converterName()} = ${converter.construct()};
+#end
+#end
+
+#foreach ( $parameter in $packet.parameters() )
+#set( $converter = $parameter.converter() )
+		NetworkObjectSize ${parameter.sizeName()} = ${converter.size( $parameter )};
+#end
 		
-		NetworkObjectSize schemaSize = NetworkUtils.calculateSize(schemaConverter, schemaData);
-		
-		size = NetworkObjectSize.combine(schemaSize);
+		size = NetworkObjectSize.combine(#foreach( $parameter in $packet.parameters() )${parameter.sizeName()}#if( ! $foreach.last ), #{end}#{end});
 	}
 
-	protected NegotiateProtocolPacket(ByteBuffer buffer) {
-		this(NetworkUtils.readList(buffer, new Schema.SchemaConverter()::read));
+	protected ${packet.name()}Packet(ByteBuffer buffer) {
+		this(#foreach( $parameter in $packet.parameters() )#set( $converter = $parameter.converter() )${converter.read( $parameter, "buffer" )}#if( ! $foreach.last ), #{end}#{end});
 	}
 	
 	@Override
 	public void write(ByteBuffer buffer) {
-		NetworkUtils.writeCollection(buffer, schemaData, schemaConverter::write);
+#foreach( $parameter in $packet.parameters() )
+#set( $converter = $parameter.converter() )
+		${converter.write( $parameter, "buffer" )};
+#end
 	}
 
 	@Override
@@ -54,6 +71,6 @@ public final class NegotiateProtocolPacket extends Packet {
 	
 	@Override
 	public void handle(Connection<?> connection, int minorVersion) throws NetworkException {
-		BasePackets.sendProtocolBack(connection, schemaData);
+		${packet.executionExpression()};
 	}
 }

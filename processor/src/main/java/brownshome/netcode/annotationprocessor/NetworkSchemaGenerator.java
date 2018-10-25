@@ -1,8 +1,6 @@
 package brownshome.netcode.annotationprocessor;
 
 import java.io.Writer;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -16,8 +14,6 @@ import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic.Kind;
 
-import org.apache.velocity.VelocityContext;
-
 import brownshome.netcode.annotation.DefinePacket;
 import brownshome.netcode.annotation.DefineSchema;
 
@@ -27,8 +23,7 @@ import brownshome.netcode.annotation.DefineSchema;
  */
 public class NetworkSchemaGenerator extends AbstractProcessor {
 	private Filer filer;
-	
-	private TypeElement converterElement;
+	private static boolean firstPass = true;
 	
 	@Override
 	public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -44,34 +39,40 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 	@Override
 	public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
 		try {
-			Map<String, Schema> schemas = new HashMap<>();
+			if(!firstPass)
+				return true;
+			
+			firstPass = false;
 			
 			for(Element element : roundEnv.getElementsAnnotatedWith(DefineSchema.class)) {
 				Schema schema = new Schema((PackageElement) element);
 				
-				schemas.put(schema.fullName(), schema);
+				Schema.addSchema(schema);
 			}
 			
 			//Create the packet description.
+			int i = 0;
 			for(Element element : roundEnv.getElementsAnnotatedWith(DefinePacket.class)) {
-				Packet packet = new Packet((ExecutableElement) element);
-
-				Schema schema = schemas.get(packet.schemaName());
+				Packet packet = new Packet((ExecutableElement) element, processingEnv, i++);
+				packet.schema().addPacket(packet);
 				
-				if (schema == null) {
-					throw new PacketCompileException("Packets can only be defined in a package annotated with @PacketSchema", element);
+				try(Writer writer = filer.createSourceFile(packet.packageName() + "." + packet.name() + "Packet").openWriter()) {
+					packet.writePacket(writer);
 				}
-				
-				schema.addPacket(packet);
 			}
 			
-			return true;
+			for(Schema schema : Schema.allSchema()) {
+				try(Writer writer = filer.createSourceFile(schema.longName() + "Schema").openWriter()) {
+					schema.writeSchema(writer);
+				}
+			}
+			
+			return false;
 		} catch(PacketCompileException pce) {
 			pce.raiseError(processingEnv);
 			return false;
 		} catch(Exception e) {
-			new PacketCompileException("Unknown error: " + e.getMessage()).raiseError(processingEnv);
-			return false;
+			throw new IllegalStateException("Unknown error", e);
 		}
 	}
 

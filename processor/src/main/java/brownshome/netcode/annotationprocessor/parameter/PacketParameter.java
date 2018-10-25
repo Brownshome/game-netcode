@@ -1,19 +1,44 @@
 package brownshome.netcode.annotationprocessor.parameter;
 
-import java.util.Collections;
-import java.util.List;
+import javax.lang.model.element.VariableElement;
 
 /** This represents a parameter to a packet method. This only includes the
  * converted types, and not the connection or version number. */
-public interface PacketParameter {
-	default List<String> requiredImports() { return Collections.emptyList(); }
+public class PacketParameter {
+	private final String type, name;
+	private final ConverterExpression converter;
 	
-	ConverterExpression converter();
+	public PacketParameter(VariableElement element, ConverterExpression converter) {
+		this(element.asType().toString(), element.getSimpleName().toString(), converter);
+	}
 	
-	/**
-	 * private final ${type} ${name}Data;
-	 **/
-	String type();
+	public PacketParameter(String type, String name, ConverterExpression converter) {
+		this.type = type;
+		this.name = name;
+		this.converter = converter;
+	}
+	
+	public ConverterExpression converter() {
+		return converter;
+	}
+	
+	public String type() {
+		return type;
+	}
 
-	String name();
+	public String dataName() {
+		return name + "Data";
+	}
+	
+	public String converterName() {
+		return name + "Converter";
+	}
+
+	public String sizeName() {
+		return name + "Size";
+	}
+	
+	protected String name() {
+		return name;
+	}
 }

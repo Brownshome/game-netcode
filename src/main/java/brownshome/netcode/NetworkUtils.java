@@ -13,7 +13,7 @@ import brownshome.netcode.annotation.converter.Networkable;
 import brownshome.netcode.sizing.NetworkObjectSize;
 
 public final class NetworkUtils {
-	public static final NetworkObjectSize INTEGER_SIZE = new NetworkObjectSize(Integer.BYTES, true, true);
+	public static final NetworkObjectSize INT_SIZE = new NetworkObjectSize(Integer.BYTES, true, true);
 	
 	/** This constant of 3 occurs when the char 0xFFFF is encoded. */
 	private static final int MAXIMUM_UTF8_BYTES_PER_CHAR = 3;
@@ -87,6 +87,6 @@ public final class NetworkUtils {
 				.map(converter::apply)
 				.reduce(NetworkObjectSize.IDENTITY, NetworkObjectSize::combine);
 		
-		return NetworkObjectSize.combine(INTEGER_SIZE, rawList).nonConstant();
+		return NetworkObjectSize.combine(INT_SIZE, rawList).nonConstant();
 	}
 }

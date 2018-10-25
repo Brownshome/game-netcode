@@ -75,8 +75,8 @@ public abstract class Schema {
 		this.packetConstructors = packetConstructors;
 		
 		size = NetworkObjectSize.combine(
-				NetworkUtils.INTEGER_SIZE,
-				NetworkUtils.INTEGER_SIZE,
+				NetworkUtils.INT_SIZE,
+				NetworkUtils.INT_SIZE,
 				NetworkUtils.calculateSize(fullName));
 	}
 	
