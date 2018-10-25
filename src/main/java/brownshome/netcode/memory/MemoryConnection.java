@@ -67,7 +67,6 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 		
 		connected = SettableFuture.create();
 		
-		send(new HelloPacket(4));
 		send(new NegotiateProtocolPacket(manager.schemas()));
 		
 		return connected;

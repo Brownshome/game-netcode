@@ -23,7 +23,9 @@ public final class NetworkUtils {
 		int length = buffer.getInt();
 		
 		if(buffer.hasArray()) {
-			return new String(buffer.array(), buffer.position(), length, StandardCharsets.UTF_8);
+			String string = new String(buffer.array(), buffer.position(), length, StandardCharsets.UTF_8);
+			buffer.position(buffer.position() + length);
+			return string;
 		}
 		
 		//Guard against OOM
