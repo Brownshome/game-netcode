@@ -36,7 +36,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 	public UDPConnectionManager(List<Schema> schema, int port) throws IOException {
 		this.schema = schema;
 
-		channel = DatagramChannel.open();
+		channel = DatagramChannel.open(StandardProtocolFamily.INET6);
 
 		if(port == 0) {
 			channel.bind(null);
@@ -45,7 +45,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 			channel.bind(new InetSocketAddress(port));
 		}
 
-		address = new InetSocketAddress("localhost", port);
+		address = new InetSocketAddress("::1", port);
 
 		listenerThread = new Thread(() -> {
 			ByteBuffer buffer = ByteBuffer.allocate(1024);
