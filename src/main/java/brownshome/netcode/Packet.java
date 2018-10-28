@@ -1,6 +1,5 @@
 package brownshome.netcode;
 
-import brownshome.netcode.annotation.WithDirection.Direction;
 import brownshome.netcode.annotation.converter.Networkable;
 
 /** This class is extended by generated packet classes. It will usually not be needed to be extended manually. */
@@ -54,11 +53,6 @@ public abstract class Packet implements Networkable {
 	/** Returns true if this packet will always reach the endpoint. */
 	public boolean reliable() {
 		return false;
-	}
-	
-	/** Returns the direction that this packet will be sent. */
-	public Direction direction() {
-		return Direction.BOTH;
 	}
 	
 	/** Returns the priority of this packet, higher priorities will be sent first. */

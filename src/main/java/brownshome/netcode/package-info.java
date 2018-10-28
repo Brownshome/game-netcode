@@ -5,7 +5,7 @@
  * @author James Brown
  *
  */
-@DefineSchema(name = "Base", major = 0, minor = 0)
-package brownshome.netcode.packets;
+@DefineSchema(name = "Base")
+package brownshome.netcode;
 
 import brownshome.netcode.annotation.DefineSchema;

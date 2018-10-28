@@ -31,8 +31,6 @@ import brownshome.netcode.annotation.DefinePacket;
 import brownshome.netcode.annotation.HandledBy;
 import brownshome.netcode.annotation.MakeReliable;
 import brownshome.netcode.annotation.VersionParam;
-import brownshome.netcode.annotation.WithDirection;
-import brownshome.netcode.annotation.WithDirection.Direction;
 import brownshome.netcode.annotation.WithPriority;
 import brownshome.netcode.annotation.converter.UseConverter;
 import brownshome.netcode.annotationprocessor.parameter.BasicTypeConverter;
@@ -53,7 +51,6 @@ public final class Packet {
 	private final int priority;
 	private final boolean canFragment;
 	private final boolean isReliable;
-	private final Direction direction;
 	private final String handledBy;
 	private final Schema schema;
 	private final int minimumVersion;
@@ -81,9 +78,6 @@ public final class Packet {
 		handledBy = handler == null ? "default" : handler.value();
 
 		isReliable = element.getAnnotation(MakeReliable.class) != null;
-
-		WithDirection withDirection = element.getAnnotation(WithDirection.class);
-		direction = handler == null ? Direction.BOTH : withDirection.value();
 
 		WithPriority withPriority = element.getAnnotation(WithPriority.class);
 		priority = handler == null ? 0 : withPriority.value();
@@ -292,10 +286,6 @@ public final class Packet {
 
 	public boolean isReliable() {
 		return isReliable;
-	}
-
-	public Direction direction() {
-		return direction;
 	}
 
 	public String handledBy() {

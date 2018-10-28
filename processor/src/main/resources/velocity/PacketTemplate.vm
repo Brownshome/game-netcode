@@ -9,7 +9,6 @@ import brownshome.netcode.NetworkException;
 import brownshome.netcode.NetworkUtils;
 import brownshome.netcode.Packet;
 import brownshome.netcode.sizing.NetworkObjectSize;
-import brownshome.netcode.annotation.WithDirection.Direction;
 
 public final class ${packet.name()}Packet extends Packet {
 #foreach ( $parameter in $packet.parameters() )
@@ -90,10 +89,5 @@ public final class ${packet.name()}Packet extends Packet {
 	@Override
 	public int priority() {
 		return $packet.priority();
-	}
-
-	@Override
-	public Direction direction() {
-		return Direction.${packet.direction()};
 	}
 }

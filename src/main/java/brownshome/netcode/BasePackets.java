@@ -1,4 +1,4 @@
-package brownshome.netcode.packets;
+package brownshome.netcode;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -6,13 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
-import brownshome.netcode.Connection;
-import brownshome.netcode.Protocol;
-import brownshome.netcode.Schema;
 import brownshome.netcode.annotation.ConnectionParam;
 import brownshome.netcode.annotation.DefinePacket;
-import brownshome.netcode.annotation.WithDirection;
-import brownshome.netcode.annotation.WithDirection.Direction;
 import brownshome.netcode.annotation.converter.UseConverter;
 
 /** This class contains all of the packets used by the base protocol. */
@@ -30,11 +25,10 @@ public final class BasePackets {
 	}
 	
 	@DefinePacket(name = "NegotiateProtocol")
-	@WithDirection(Direction.TO_SERVER)
 	public static void sendProtocolBack(@ConnectionParam Connection<?> connection, @UseConverter(Schema.SchemaConverter.class) List<Schema> schemas) {
 		Map<String, Schema> supportedSchemas = new HashMap<>();
 		
-		for(Schema s : connection.getConnectionManager().schemas()) {
+		for(Schema s : connection.connectionManager().schemas()) {
 			supportedSchemas.put(s.fullName(), s);
 		}
 		
@@ -59,18 +53,21 @@ public final class BasePackets {
 		
 		connection.send(new ConfirmProtocolPacket(protocol));
 		
-		connection.setProtocol(protocol);
+		connection.receiveNegotiatePacket(protocol);
 	}
 	
 	@DefinePacket(name = "NegotiationFailed")
-	@WithDirection(Direction.TO_CLIENT)
 	public static void negotiationFailed(@ConnectionParam Connection<?> connection, String reason) {
-		LOGGER.severe(String.format("Error negotiating schema with '%s': %s", connection.getAddress(), reason));
+		LOGGER.severe(String.format("Error negotiating schema with '%s': %s", connection.address(), reason));
 	}
 	
 	@DefinePacket(name = "ConfirmProtocol")
-	@WithDirection(Direction.TO_CLIENT)
 	public static void confirmProtocol(@ConnectionParam Connection<?> connection, Protocol protocol) {
-		connection.setProtocol(protocol);
+		connection.receiveConfirmPacket(protocol);
+	}
+
+	@DefinePacket(name = "CloseConnection")
+	public static void closeConnection(@ConnectionParam Connection<?> connection) {
+		connection.closeConnection(false);
 	}
 }

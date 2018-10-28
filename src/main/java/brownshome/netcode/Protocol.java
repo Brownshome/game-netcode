@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import brownshome.netcode.annotation.converter.Converter;
 import brownshome.netcode.annotation.converter.Networkable;
@@ -15,6 +16,13 @@ import brownshome.netcode.sizing.NetworkObjectSize;
  * When this class is networked it sends all of the schema that it uses.
  **/
 public final class Protocol implements Networkable {
+	private static final Protocol BASE_PROTOCOL = new Protocol(List.of(new BaseSchema(0)));
+
+	/** Returns a protocol with only the base schema defined, all systems will support this protocol. */
+	public static Protocol baseProtocol() {
+		return BASE_PROTOCOL;
+	}
+
 	private static class SchemaAllocation {
 		final int startID;
 		final Schema schema;
@@ -30,7 +38,7 @@ public final class Protocol implements Networkable {
 	private final Map<Integer, SchemaAllocation> IDToSchemaMapping;
 	
 	private final NetworkObjectSize networkSizeData;
-	
+
 	/** The order of the schema does matter. */
 	public Protocol(List<Schema> schema) {
 		nameToSchemaMapping = new LinkedHashMap<>();
@@ -92,7 +100,8 @@ public final class Protocol implements Networkable {
 
 	@Override
 	public String toString() {
-		return String.format("Protocol %s", nameToSchemaMapping.values());
+		return String.format("Protocol %s", nameToSchemaMapping.values()
+				.stream().map(alloc -> alloc.schema).collect(Collectors.toList()));
 	}
 
 	/* ****************** NETWORKABLE ****************** */

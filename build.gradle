@@ -30,8 +30,6 @@ allprojects {
 apply from: 'build-scripts/eclipseIncludeGenerated.gradle'
 
 dependencies {
-	implementation group: 'com.google.guava', name: 'guava', version: '26.0-jre'
-
 	api project(':annotation')
 	annotationProcessor project(':processor')
 }

@@ -48,7 +48,11 @@ class InnerParameter extends PacketParameter {
 	
 	@Override
 	public String dataName() {
-		// TODO Auto-generated method stub
 		return "_" + super.dataName();
+	}
+
+	@Override
+	public String name() {
+		return "_" + super.name();
 	}
 }

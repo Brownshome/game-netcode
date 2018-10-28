@@ -20,13 +20,17 @@ public final class ${schema.shortName()}Schema extends Schema {
 	public ${schema.shortName()}Schema() {
 		this(MAJOR_VERSION, MINOR_VERSION);
 	}
-	
+
+	public ${schema.shortName()}Schema(int minorVersion) {
+		this(MAJOR_VERSION, minorVersion);
+	}
+
 	public ${schema.shortName()}Schema(int majorVersion, int minorVersion) {
 		super(SHORT_NAME, FULL_NAME, majorVersion, minorVersion, createPacketList(minorVersion));
 	}
 
 	private static List<Function<ByteBuffer, Packet>> createPacketList(int minorVersion) {
-	    // TODO create a system for varying packet IDs
+		// TODO create a system for varying packet IDs
 		return List.of(#foreach( $packet in $schema.packetDefinitions() )${packet.name()}Packet::new#if( ! $foreach.last ), #{end}#{end});
 	}
 

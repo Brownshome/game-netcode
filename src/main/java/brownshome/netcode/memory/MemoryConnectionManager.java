@@ -3,13 +3,18 @@ package brownshome.netcode.memory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import brownshome.netcode.ConnectionManager;
 import brownshome.netcode.Schema;
 
 /** The address of a memory connection is the pipe that it sends data into. */
 public class MemoryConnectionManager implements ConnectionManager<MemoryConnectionManager, MemoryConnection> {
+	private static final Logger LOGGER = Logger.getLogger("network");
+
 	private final List<Schema> schema;
 	
 	private final Map<String, Executor> executors = new HashMap<>();
@@ -36,5 +41,26 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 	@Override
 	public List<Schema> schemas() {
 		return schema;
+	}
+
+	@Override
+	public void close() {
+		for(var connection : connections.values()) {
+			connection.closeConnection(true);
+		}
+
+		for(var connection : connections.values()) {
+			try {
+				connection.closeConnection(true).get();
+			} catch(InterruptedException e) {
+				//Exit from the close operation.
+				return;
+			} catch(ExecutionException e) {
+				LOGGER.log(Level.WARNING,
+						String.format("Connection '%s' failed to terminate cleanly", connection.address()),
+						e.getCause());
+				//Keep trying to exit.
+			}
+		}
 	}
 }
