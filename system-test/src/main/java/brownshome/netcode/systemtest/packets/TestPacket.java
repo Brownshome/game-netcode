@@ -1,9 +1,9 @@
 package brownshome.netcode.systemtest.packets;
 
-import java.util.List;
 import java.util.logging.Logger;
 
 import brownshome.netcode.annotation.DefinePacket;
+import brownshome.netcode.annotation.MakeOrdered;
 
 public class TestPacket {
 	private static final Logger LOGGER = Logger.getLogger("network-test");
@@ -13,8 +13,11 @@ public class TestPacket {
 		LOGGER.info("Received message: " + message);
 	}
 
-	@DefinePacket(name = "NestedListTest")
-	protected void listOfList(List<List<String>> listOfList) {
-
+	@DefinePacket(name = "LongProcessing")
+	@MakeOrdered("LongProcessing")
+	protected void longProcessing(long millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException e) {  }
 	}
 }

@@ -84,7 +84,10 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 			List<CompletableFuture<Void>> allOf = new ArrayList<>();
 			for(int blockedBy : packet.orderedIds()) {
 				OrderingBlock block = new OrderingBlock(packet.schemaName(), blockedBy);
-				allOf.addAll(orderingMapping.get(block));
+				var futures = orderingMapping.get(block);
+				if(futures != null) {
+					allOf.addAll(orderingMapping.get(block));
+				}
 			}
 
 			//1b. Only send the packet after all of them have completed.
@@ -92,11 +95,17 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 					? CompletableFuture.completedFuture(null)
 					: CompletableFuture.allOf(allOf.toArray(new CompletableFuture<?>[0]));
 
-			CompletableFuture<Void> handlerCompleteFuture = startingFuture.thenRun(() -> {
+			CompletableFuture<Void> handlerCompleteFuture = new CompletableFuture<>();
+			
+			startingFuture.thenRun(() -> {
 				//Send the packet
-				other.executeOn(
-						() -> protocol().handle(this, packet),
-						packet.handledBy());
+				other.executeOn(() -> {
+							try {
+								protocol().handle(this, packet);
+							} finally {
+								handlerCompleteFuture.complete(null);
+							}
+						}, packet.handledBy());
 			});
 
 			//1c. Add the post action future to the list of futures.
@@ -109,9 +118,11 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 
 				newList.add(handlerCompleteFuture);
 
-				for(var f : newList) {
-					if(!f.isDone()) {
-						newList.add(f);
+				if(oldList != null) {
+					for(var f : oldList) {
+						if(!f.isDone()) {
+							newList.add(f);
+						}
 					}
 				}
 
