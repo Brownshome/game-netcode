@@ -2,8 +2,8 @@ package brownshome.netcode.annotationprocessor;
 
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -25,10 +25,10 @@ import javax.lang.model.util.Types;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 
-import brownshome.netcode.annotation.CanFragment;
 import brownshome.netcode.annotation.ConnectionParam;
 import brownshome.netcode.annotation.DefinePacket;
 import brownshome.netcode.annotation.HandledBy;
+import brownshome.netcode.annotation.MakeOrdered;
 import brownshome.netcode.annotation.MakeReliable;
 import brownshome.netcode.annotation.VersionParam;
 import brownshome.netcode.annotation.WithPriority;
@@ -49,8 +49,8 @@ public final class Packet {
 
 	private final String name;
 	private final int priority;
-	private final boolean canFragment;
 	private final boolean isReliable;
+	private final String[] orderedBy;
 	private final String handledBy;
 	private final Schema schema;
 	private final int minimumVersion;
@@ -72,8 +72,13 @@ public final class Packet {
 		minimumVersion = definePacket.minimumVersion();
 		name = definePacket.name();
 
-		canFragment = element.getAnnotation(CanFragment.class) != null;
-
+		MakeOrdered ordering = element.getAnnotation(MakeOrdered.class);
+		if(ordering == null) {
+			orderedBy = new String[0];
+		} else {
+			orderedBy = ordering.value();
+		}
+		
 		HandledBy handler = element.getAnnotation(HandledBy.class);
 		handledBy = handler == null ? "default" : handler.value();
 
@@ -280,8 +285,8 @@ public final class Packet {
 		return priority;
 	}
 
-	public boolean canFragment() {
-		return canFragment;
+	public int[] calculatedOrderingIDs(Schema schema) {
+		return Arrays.stream(orderedBy).mapToInt(schema::idForPacket).toArray();
 	}
 
 	public boolean isReliable() {

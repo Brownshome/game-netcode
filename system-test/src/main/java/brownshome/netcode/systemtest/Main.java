@@ -1,14 +1,10 @@
 package brownshome.netcode.systemtest;
 
-import java.io.IOException;
-import java.util.List;
+import java.io.*;
+import java.util.*;
 
-import brownshome.netcode.BaseSchema;
-import brownshome.netcode.Connection;
-import brownshome.netcode.NetworkException;
-import brownshome.netcode.Schema;
-import brownshome.netcode.systemtest.packets.TestMessagePacket;
-import brownshome.netcode.systemtest.packets.TestSchema;
+import brownshome.netcode.*;
+import brownshome.netcode.systemtest.packets.*;
 import brownshome.netcode.udp.UDPConnectionManager;
 
 public class Main {
@@ -23,11 +19,7 @@ public class Main {
 		
 		Connection<?> connection = clientConnectionManager.getOrCreateConnection(serverConnectionManager.getAddress());
 
-		try {
-			connection.connectSync();
-		} catch(NetworkException e) {
-			throw new RuntimeException("Unable to connect to server", e);
-		}
+		connection.connectSync();
 
 		connection.send(new TestMessagePacket("Hello"));
 

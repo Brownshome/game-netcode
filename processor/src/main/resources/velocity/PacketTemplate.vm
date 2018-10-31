@@ -22,7 +22,8 @@ public final class ${packet.name()}Packet extends Packet {
 	private final NetworkObjectSize size;
 	
 	public ${packet.name()}Packet(#foreach( $parameter in $packet.parameters() )$parameter.type() ${parameter.dataName()}#if( ! $foreach.last ), #{end}#{end}) {
-		super(${schema.shortName()}Schema.FULL_NAME, "${packet.handledBy()}", ${packet.id()});
+		super(${schema.shortName()}Schema.FULL_NAME, "${packet.handledBy()}", ${packet.id()}, 
+				new int[] { #foreach( $id in $packet.calculatedOrderingIDs($schema) )${id}#if( ! $foreach.last ), #{end}#{end} });
 
 #foreach ( $parameter in $packet.parameters() )
 #set( $converter = $parameter.converter() )
@@ -71,13 +72,6 @@ public final class ${packet.name()}Packet extends Packet {
 	public void handle(Connection<?> connection, int minorVersion) throws NetworkException {
 		${packet.executionExpression()};
 	}
-
-#if ( $packet.canFragment() )
-	@Override
-	public boolean canFragment() {
-		return false;
-	}
-#end
 
 #if ( $packet.isReliable() )
 	@Override

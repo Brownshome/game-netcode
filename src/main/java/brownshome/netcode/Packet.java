@@ -7,11 +7,13 @@ public abstract class Packet implements Networkable {
 	private final String handledBy;
 	private final String schemaName;
 	private final int packetId;
+	private final int[] orderedIds;
 	
-	protected Packet(String schemaName, String handler, int packetId) {
+	protected Packet(String schemaName, String handler, int packetId, int[] orderedIds) {
 		this.schemaName = schemaName;
 		this.handledBy = handler;
 		this.packetId = packetId;
+		this.orderedIds = orderedIds;
 	}
 	
 	/** 
@@ -45,9 +47,11 @@ public abstract class Packet implements Networkable {
 		return true;
 	}
 	
-	/** Returns true if this packet can be fragmented. */
-	public boolean canFragment() {
-		return false;
+	/**
+	 * The set of packet IDs that this packet may not overtake.
+	 */
+	public final int[] orderedIds() {
+		return orderedIds;
 	}
 	
 	/** Returns true if this packet will always reach the endpoint. */

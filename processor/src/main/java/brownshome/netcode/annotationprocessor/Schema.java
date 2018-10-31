@@ -45,6 +45,18 @@ public class Schema {
 		packetDefinitions.add(packet);
 	}
 	
+	public int idForPacket(String name) {
+		for(int i = 0; i < packetDefinitions.size(); i++) {
+			Packet packet = packetDefinitions.get(i);
+			
+			if(packet.name().equals(name)) {
+				return i;
+			}
+		}
+		
+		throw new IllegalArgumentException(String.format("No packet matching '%s'", name));
+	}
+	
 	public void writeSchema(Writer writer) {
 		VelocityContext context = new VelocityContext();
 		context.put("schema", this);
