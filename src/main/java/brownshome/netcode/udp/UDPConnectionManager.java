@@ -22,7 +22,7 @@ import brownshome.netcode.Schema;
 
 /** Represents a UDP connection that is bound to a single port on the machine. */
 public class UDPConnectionManager implements ConnectionManager<InetSocketAddress, UDPConnection> {
-	private static final Logger LOGGER = Logger.getLogger("network");
+	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 
 	private final List<Schema> schema;
 	private final DatagramChannel channel;
@@ -102,12 +102,12 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 	@Override
 	public void close() {
 		for(var connection : connections.values()) {
-			connection.closeConnection(true);
+			connection.closeConnection();
 		}
 
 		for(var connection : connections.values()) {
 			try {
-				connection.closeConnection(true).get();
+				connection.closeConnection().get();
 			} catch(InterruptedException e) {
 				//Exit from the close operation.
 				break;

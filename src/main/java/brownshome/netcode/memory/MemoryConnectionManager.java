@@ -11,9 +11,16 @@ import java.util.logging.Logger;
 import brownshome.netcode.ConnectionManager;
 import brownshome.netcode.Schema;
 
-/** The address of a memory connection is the pipe that it sends data into. */
+/**
+ * This implements a connection that forms a direct message passing service between connections in the same process.
+ *
+ * The connections can safely be on differing threads. Note that the packets are never de-serialized, and no packet schema
+ * negotiation takes place with this connection.
+ *
+ * Connect always returns instantly.
+ */
 public class MemoryConnectionManager implements ConnectionManager<MemoryConnectionManager, MemoryConnection> {
-	private static final Logger LOGGER = Logger.getLogger("network");
+	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 
 	private final List<Schema> schema;
 	
@@ -46,12 +53,12 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 	@Override
 	public void close() {
 		for(var connection : connections.values()) {
-			connection.closeConnection(true);
+			connection.closeConnection();
 		}
 
 		for(var connection : connections.values()) {
 			try {
-				connection.closeConnection(true).get();
+				connection.closeConnection().get();
 			} catch(InterruptedException e) {
 				//Exit from the close operation.
 				return;

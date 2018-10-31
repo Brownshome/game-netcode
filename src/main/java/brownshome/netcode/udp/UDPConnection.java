@@ -1,6 +1,6 @@
 package brownshome.netcode.udp;
 
-import brownshome.netcode.Connection;
+import brownshome.netcode.NetworkConnection;
 import brownshome.netcode.Packet;
 
 import java.io.IOException;
@@ -9,8 +9,8 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
-public class UDPConnection extends Connection<InetSocketAddress> {
-	private static final Logger LOGGER = Logger.getLogger("network");
+public class UDPConnection extends NetworkConnection<InetSocketAddress> {
+	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 	private final UDPConnectionManager manager;
 
 	public UDPConnection(UDPConnectionManager manager, InetSocketAddress other) {

@@ -1,10 +1,7 @@
 package brownshome.netcode;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import brownshome.netcode.annotation.converter.Converter;
@@ -32,7 +29,46 @@ public final class Protocol implements Networkable {
 			this.schema = schema;
 		}
 	}
-	
+
+	public static final class ProtocolNegotiation {
+		public final Protocol protocol;
+		public final Set<Schema> missingSchema;
+
+		private ProtocolNegotiation(Protocol protocol, Set<Schema> missingSchema) {
+			this.protocol = protocol;
+			this.missingSchema = missingSchema;
+		}
+	}
+
+	public static ProtocolNegotiation negotiateProtocol(List<Schema> requestedList, List<Schema> supportedList) {
+		Map<String, Schema> supportedSchemas = new HashMap<>();
+
+		for(Schema s : supportedList) {
+			supportedSchemas.put(s.fullName(), s);
+		}
+
+		List<Schema> chosenSchema = new ArrayList<>();
+		Set<Schema> missingSchema = new HashSet<>();
+		
+		for(Schema s : requestedList) {
+			Schema supported = supportedSchemas.get(s.fullName());
+
+			if(supported == null || supported.majorVersion() != s.majorVersion()) {
+				missingSchema.add(s);
+			} else {
+				int minorVersion = Math.min(s.minorVersion(), supported.minorVersion());
+
+				chosenSchema.add(s.withMinorVersion(minorVersion));
+			}
+		}
+
+		Protocol protocol = new Protocol(chosenSchema);
+
+		ProtocolNegotiation result = new ProtocolNegotiation(protocol, missingSchema);
+
+		return result;
+	}
+
 	/** This is ordered by the input order of the schema. */
 	private final LinkedHashMap<String, SchemaAllocation> nameToSchemaMapping;
 	private final Map<Integer, SchemaAllocation> IDToSchemaMapping;
