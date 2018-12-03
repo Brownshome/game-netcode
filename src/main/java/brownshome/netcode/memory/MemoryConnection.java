@@ -6,39 +6,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import brownshome.netcode.*;
+import brownshome.netcode.ordering.PacketType;
 
+/**
+ * This is a connection that connects two MemoryConnectionManagers. This connection will never block the send method. But
+ * it will drop packets if the other end of the connection is overloaded.
+ *
+ * Packets will be buffered up to a small number of packets. If a packet cannot be sent, non-reliable packets will be dropped
+ * in preference to reliable packets.
+ *
+ * Packets will also be dropped based on how many packets they are holding up and / or their priority.
+ **/
 public class MemoryConnection implements Connection<MemoryConnectionManager> {
-
-	/**
-	 * This is a struct that is used to store ordering guarantees. Orders are guaranteed against the full schema name
-	 * and the ID of the packet within that schema.
-	 */
-	private static class OrderingBlock {
-		final String schemaName;
-		final int id;
-
-		OrderingBlock(String schemaName, int id) {
-			this.schemaName = schemaName;
-			this.id = id;
-		}
-
-		OrderingBlock(Packet packet) {
-			this(packet.schemaName(), packet.packetID());
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if(this == o) return true;
-			if(o == null || getClass() != o.getClass()) return false;
-			OrderingBlock that = (OrderingBlock) o;
-			return id == that.id && schemaName.equals(that.schemaName);
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(schemaName, id);
-		}
-	}
 
 	private final MemoryConnectionManager other;
 	private final MemoryConnectionManager manager;
@@ -52,7 +31,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 	/** This mapping stores the list
 	 * This is a thread-safe data structure
 	 * */
-	private final ConcurrentHashMap<OrderingBlock, Collection<CompletableFuture<Void>>> orderingMapping;
+	private final ConcurrentHashMap<PacketType, Collection<CompletableFuture<Void>>> orderingMapping;
 	
 	protected MemoryConnection(MemoryConnectionManager manager, MemoryConnectionManager other) {
 		this.other = other;
@@ -72,7 +51,12 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 
 	@Override
 	public CompletableFuture<Void> send(Packet packet) {
-		try { closingLock.readLock().lock();
+		//Sending process
+		other.executeOn(() -> protocol().handle(this, packet), packet.handledBy());
+
+		return null;
+
+		/*try { closingLock.readLock().lock();
 
 			if(closedFuture != null) {
 				return CompletableFuture.failedFuture(new NetworkException("This connection is closed", this));
@@ -83,7 +67,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 			//1a. Get all of the packets that have occurred before this one that we care about.
 			List<CompletableFuture<Void>> allOf = new ArrayList<>();
 			for(int blockedBy : packet.orderedIds()) {
-				OrderingBlock block = new OrderingBlock(packet.schemaName(), blockedBy);
+				PacketType block = new PacketType(packet.schemaName(), blockedBy);
 				var futures = orderingMapping.get(block);
 				if(futures != null) {
 					allOf.addAll(orderingMapping.get(block));
@@ -109,7 +93,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 			});
 
 			//1c. Add the post action future to the list of futures.
-			OrderingBlock thisBlock = new OrderingBlock(packet);
+			PacketType thisBlock = new PacketType(packet);
 			orderingMapping.compute(thisBlock, (key, oldList) -> {
 				//Remove all of the futures that have completed, but retain those that have not, and the new future.
 				//Do not edit the old list...
@@ -137,7 +121,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 			} else {
 				return startingFuture;
 			}
-		} finally { closingLock.readLock().unlock(); }
+		} finally { closingLock.readLock().unlock(); }*/
 	}
 
 	@Override

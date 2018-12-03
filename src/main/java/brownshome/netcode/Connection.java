@@ -1,13 +1,15 @@
 package brownshome.netcode;
 
-import java.io.Closeable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-public interface Connection<ADDRESS> extends Closeable {
+public interface Connection<ADDRESS> extends AutoCloseable {
 	/**
-	 * Sends a packet. If this connection has not yet connected, then the packet will be sent as soon as the connection is made.
+	 * Sends a packet. If this connection has not yet connected, then the packet will be sent as soon as the connection
+	 * is made. If this future errors then the connection is in an error state, and will close. This may occur with
+	 * bandwidth overloads and should be considered non-recoverable.
+	 *
 	 * @return A future that will return when the packet has been sent. In the case of a reliable packet it will return when it
 	 * has been received.
 	 */

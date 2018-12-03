@@ -1,7 +1,5 @@
 package brownshome.netcode;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -9,15 +7,19 @@ import java.util.concurrent.Executor;
  * This class handles the incoming connections and creates outgoing connections.
  * @author James Brown
  */
-public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRESS>> extends Closeable {
+public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRESS>> extends AutoCloseable {
 	/** 
 	 * Gets a connection to an address.
 	 * @return A connection object. This connection may not have been connected.
 	 **/
 	CONNECTION getOrCreateConnection(ADDRESS address);
 	
-	/** Registers an executor that incoming packets can be executed on. */
-	void registerExecutor(String name, Executor executor);
+	/**
+	 * Registers an executor that incoming packets can be executed on.
+	 *
+	 * @param concurrency The maximum number of calls that will be in flight at the same time.
+	 **/
+	void registerExecutor(String name, Executor executor, int concurrency);
 
 	/** Returns a list of all schemas that should be used with this connection. */
 	List<Schema> schemas();
@@ -27,5 +29,5 @@ public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRES
 	 * threads that the manager has open will cease to function.
 	 */
 	@Override
-	void close() throws IOException;
+	void close();
 }

@@ -16,18 +16,18 @@ public class Main {
 		MemoryConnectionManager clientConnectionManager = new MemoryConnectionManager(protocol);
 		MemoryConnectionManager serverConnectionManager = new MemoryConnectionManager(protocol);
 
-		Executor executor = Executors.newFixedThreadPool(5);
+		Executor executor = Executors.newFixedThreadPool(20);
 		
-		serverConnectionManager.registerExecutor("default", executor);
-		clientConnectionManager.registerExecutor("default", executor);
+		serverConnectionManager.registerExecutor("default", executor, 1000);
+		clientConnectionManager.registerExecutor("default", executor, 1000);
 		
 		Connection<?> connection = clientConnectionManager.getOrCreateConnection(serverConnectionManager);
 
 		connection.connectSync();
 
 		while(true) {
-			connection.send(new LongProcessingPacket(50l));
-			Thread.sleep(5l);
+			connection.send(new LongProcessingPacket(5000l));
+			Thread.sleep(1000);
 		}
 	}
 }

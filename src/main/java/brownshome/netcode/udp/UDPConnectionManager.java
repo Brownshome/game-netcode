@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -27,6 +29,32 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 	private final List<Schema> schema;
 	private final DatagramChannel channel;
 	private final InetSocketAddress address;
+
+	/** We drop the packet, this causes it to be resent later by the other end of the connection. */
+	private static final class DroppingExecutor implements Executor {
+		final AtomicInteger packetSlotsRemaining;
+		final Executor executor;
+
+		DroppingExecutor(Executor executor, int concurrency) {
+			this.executor = executor;
+			this.packetSlotsRemaining = new AtomicInteger(concurrency);
+		}
+
+		@Override
+		public void execute(Runnable command) {
+			if(packetSlotsRemaining.get() == 0) {
+				throw new RejectedExecutionException("Not able to execute this command");
+			}
+
+			packetSlotsRemaining.incrementAndGet();
+
+			executor.execute(() -> {
+				try {
+					command.run();
+				} finally { packetSlotsRemaining.decrementAndGet(); }
+			});
+		}
+	}
 
 	private final Map<String, Executor> executors = new HashMap<>();
 	private final Map<SocketAddress, UDPConnection> connections = new HashMap<>();
@@ -86,8 +114,8 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 	}
 
 	@Override
-	public void registerExecutor(String name, Executor executor) {
-		executors.put(name, executor);
+	public void registerExecutor(String name, Executor executor, int concurrency) {
+		executors.put(name, new DroppingExecutor(executor, concurrency));
 	}
 
 	public void executeOn(Runnable runner, String thread) {

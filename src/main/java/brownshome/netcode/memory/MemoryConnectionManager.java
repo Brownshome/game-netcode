@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,8 +26,34 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 
 	private final List<Schema> schema;
-	
+
+	private final class BlockingExecutor implements Executor {
+		final Semaphore semaphore;
+		final Executor executor;
+
+		BlockingExecutor(Executor executor, int maximumConc) {
+			this.executor = executor;
+			this.semaphore = new Semaphore(maximumConc);
+		}
+
+		@Override
+		public void execute(Runnable command) {
+			try {
+				semaphore.acquire();
+			} catch(InterruptedException e) {
+				throw new RejectedExecutionException("Waiting interrupted");
+			}
+
+			executor.execute(() -> {
+				try {
+					command.run();
+				} finally { semaphore.release(); }
+			});
+		}
+	}
+
 	private final Map<String, Executor> executors = new HashMap<>();
+
 	private final Map<MemoryConnectionManager, MemoryConnection> connections = new HashMap<>();
 	
 	public MemoryConnectionManager(List<Schema> schema) {
@@ -37,11 +66,12 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 	}
 
 	@Override
-	public void registerExecutor(String name, Executor executor) {
-		executors.put(name, executor);
+	public void registerExecutor(String name, Executor executor, int concurrency) {
+		executors.put(name, new BlockingExecutor(executor, concurrency));
 	}
 
 	public void executeOn(Runnable runner, String thread) {
+		//Block until the executor is free.
 		executors.get(thread).execute(runner);
 	}
 

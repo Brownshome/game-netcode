@@ -1,5 +1,6 @@
 package brownshome.netcode.systemtest.packets;
 
+import java.util.Random;
 import java.util.logging.Logger;
 
 import brownshome.netcode.annotation.DefinePacket;
@@ -16,8 +17,12 @@ public class TestPacket {
 	@DefinePacket(name = "LongProcessing")
 	@MakeOrdered("LongProcessing")
 	protected void longProcessing(long millis) {
-		try {
-			Thread.sleep(millis);
-		} catch (InterruptedException e) {  }
+		long ans = 0;
+		Random random = new Random();
+		for(long l = 0; l < 1_000_000_000L; l++) {
+			ans += l * l + 5 + ans * random.nextLong();
+		}
+
+		LOGGER.info("Executed long packet " + ans);
 	}
 }
