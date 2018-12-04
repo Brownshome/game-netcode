@@ -72,7 +72,7 @@ class PacketTypeQueue {
 	 **/
 	void preReceive(SequencedPacket packet) {
 		//If this packet is older than the youngest packet that has started processing, then it can never be started
-		if(youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) > 0) {
+		if(youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) < 0) {
 			manager.dropPacket(packet);
 		} else {
 			preReceive.add(packet);
@@ -91,15 +91,16 @@ class PacketTypeQueue {
 
 		preReceive.remove(packet);
 
-		if(youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) > 0) {
+		// If a packet has started that should be after this one, we cannot run.
+		if(youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) < 0) {
 			manager.dropPacket(packet);
 		} else {
 			received.add(packet);
-		}
 
-		//If this packet is the oldest one, then it might be possible to send it.
-		if(received.element().equals(packet)) {
-			checkProcessing();
+			//If this packet is the oldest one, then it might be possible to send it.
+			if(received.element().equals(packet)) {
+				checkProcessing();
+			}
 		}
 	}
 
@@ -142,7 +143,7 @@ class PacketTypeQueue {
 		processing.add(oldestPacket);
 		received.remove();
 
-		if(manager.trim() == null || manager.trim().compareTo(oldestPacket) < 0) {
+		if(manager.trim() == null || manager.trim() - oldestPacket.sequenceNumber() < 0) {
 			//Notify the other queues of the packet we just sent.
 			for(PacketTypeQueue queue : cannotBeOvertaken) {
 				if(queue.youngestPacketStarted == null || queue.youngestPacketStarted.compareTo(oldestPacket) < 0) {
@@ -169,7 +170,7 @@ class PacketTypeQueue {
 				oldest = possibleOldest;
 			}
 		} else if(!received.isEmpty()) {
-			var possibleOldest = processing.first();
+			var possibleOldest = received.element();
 
 			if(oldest == null || possibleOldest.compareTo(oldest) < 0) {
 				oldest = possibleOldest;
@@ -195,9 +196,10 @@ class PacketTypeQueue {
 	/**
 	 * This method should be called when it is guaranteed that there will be no packets older than the given packet received.
 	 */
-	void trim(SequencedPacket packet) {
+	void trim(int trim) {
 		//If the youngestPacketStarted is older than, or equal to the trim, discard it.
-		if(youngestPacketStarted != null && youngestPacketStarted.compareTo(trim) <= 0) {
+		//We subtract here to cause overflow if needed, it is intended, as without it it would not follow the correct contract for sequence numbers.
+		if(youngestPacketStarted != null && youngestPacketStarted.sequenceNumber() - trim <= 0) {
 			youngestPacketStarted = null;
 		}
 	}

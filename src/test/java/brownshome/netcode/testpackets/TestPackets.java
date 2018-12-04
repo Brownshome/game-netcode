@@ -1,6 +1,7 @@
 package brownshome.netcode.testpackets;
 
 import brownshome.netcode.annotation.DefinePacket;
+import brownshome.netcode.annotation.MakeOrdered;
 
 import java.util.logging.Logger;
 
@@ -10,8 +11,10 @@ public final class TestPackets {
 
 	private TestPackets() {  }
 
-	@DefinePacket(name = "Hello")
-	public static void hello() {
-		LOGGER.info("Hello called");
-	}
+	@DefinePacket(name = "Simple")
+	public static void simple(String name) {	}
+
+	@DefinePacket(name = "SelfOrdered")
+	@MakeOrdered("SelfOrdered")
+	public static void selfOrdered(String name) {	}
 }

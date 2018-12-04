@@ -3,6 +3,7 @@ package ${packet.packageName()};
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Arrays;
 
 import brownshome.netcode.Connection;
 import brownshome.netcode.NetworkException;
@@ -83,5 +84,12 @@ public final class ${packet.name()}Packet extends Packet {
 	@Override
 	public int priority() {
 		return $packet.priority();
+	}
+
+	@Override
+	public String toString() {
+		Object[] items = new Object[] { #foreach( $parameter in $packet.parameters() )${parameter.dataName()}#if( ! $foreach.last ), #{end}#{end} };
+
+		return String.format("${packet.name()}Packet %s", Arrays.deepToString(items));
 	}
 }

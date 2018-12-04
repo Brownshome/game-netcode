@@ -4,7 +4,7 @@ import brownshome.netcode.Packet;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
+import java.util.function.Consumer;
 
 /**
  * This class ensures that packets are not received out of order. Packets are reconstructed by the receiving subsystem
@@ -20,22 +20,25 @@ public class OrderingManager {
 	 * To achieve this a field tracks the largest packet sequence number currently in the queue.
 	 */
 
-	private final BlockingQueue<Packet> outputQueue;
+	private final Consumer<Packet> execute, drop;
 
 	/** Store a list of packets that have not yet been handled */
 	private final Map<PacketType, PacketTypeQueue> processingQueues;
 
 	private final Map<Packet, SequencedPacket> sequencedPacketMap = new HashMap<>();
 
-	private SequencedPacket trim = null;
+	private Integer trim = null;
 	private SequencedPacket mostRecentPacket = null;
 
 	/**
 	 * Constructs and ordering manager
-	 * @param outputQueue The queue to use of executing packets.
+	 * @param execute Code to execute a packet. This method must call notifyExecutionFinished once the packet has full executed.
+	 *                If this method is not called then there will be a memory leak.
+	 * @param drop Code to drop a packet
 	 */
-	public OrderingManager(BlockingQueue<Packet> outputQueue) {
-		this.outputQueue = outputQueue;
+	public OrderingManager(Consumer<Packet> execute, Consumer<Packet> drop) {
+		this.drop = drop;
+		this.execute = execute;
 
 		processingQueues = new HashMap<>();
 	}
@@ -133,7 +136,7 @@ public class OrderingManager {
 	 * This call guarantees that no packet with a sequence number smaller that this will arrive, until the sequence
 	 * wraps around again.
 	 **/
-	public void trimPacketNumbers(SequencedPacket packet) {
+	public void trimPacketNumbers(int packet) {
 		trim = packet;
 
 		for(PacketTypeQueue queue : processingQueues.values()) {
@@ -145,19 +148,19 @@ public class OrderingManager {
 
 	void executePacket(SequencedPacket packet) {
 		sequencedPacketMap.put(packet.packet(), packet);
-		outputQueue.add(packet.packet());
+		execute.accept(packet.packet());
 	}
 
 	void dropPacket(SequencedPacket packet) {
-		//TODO
+		drop.accept(packet.packet());
 	}
 
 	PacketTypeQueue getQueue(PacketType type) {
 		return processingQueues.computeIfAbsent(type, (t) -> new PacketTypeQueue(this));
 	}
 
-	/** Returns a packet that no received packet can be older than, if this is null then there is no limit. */
-	SequencedPacket trim() {
+	/** Returns a sequence number that no received packet can be older than, if this is null then there is no limit. */
+	Integer trim() {
 		return trim;
 	}
 }
