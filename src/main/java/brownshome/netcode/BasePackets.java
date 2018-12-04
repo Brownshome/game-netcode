@@ -1,14 +1,11 @@
 package brownshome.netcode;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Logger;
-
 import brownshome.netcode.annotation.ConnectionParam;
 import brownshome.netcode.annotation.DefinePacket;
 import brownshome.netcode.annotation.converter.UseConverter;
+
+import java.util.List;
+import java.util.logging.Logger;
 
 /** This class contains all of the packets used by the base protocol. */
 public final class BasePackets {

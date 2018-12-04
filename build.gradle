@@ -8,8 +8,6 @@ allprojects {
 	apply plugin: 'eclipse'
 	apply plugin: 'idea'
 	
-	javaModule.allowModuleNamingViolations = true
-
 	eclipse {
 		classpath {
 			file.whenMerged {
@@ -25,6 +23,15 @@ allprojects {
 	repositories {
 		mavenCentral()
 	}
+	
+	test {
+		useJUnitPlatform()
+	}
+	
+	dependencies {
+		testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.1.0'
+		testRuntimeOnly group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.1.0'
+	}
 }
 
 apply from: 'build-scripts/eclipseIncludeGenerated.gradle'
@@ -32,4 +39,11 @@ apply from: 'build-scripts/eclipseIncludeGenerated.gradle'
 dependencies {
 	api project(':annotation')
 	annotationProcessor project(':processor')
+	testAnnotationProcessor project(':processor')
+}
+
+javaModule.hacks {
+	//Used for testing purposes
+	exports('brownshome.netcode', 'brownshome.netcode.ordering', 'org.junit.platform.commons')
+	opens('brownshome.netcode', 'brownshome.netcode.ordering', 'org.junit.platform.commons')
 }

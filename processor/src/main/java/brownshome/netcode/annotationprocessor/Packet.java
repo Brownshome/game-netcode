@@ -211,7 +211,7 @@ public final class Packet {
 
 	private static String generateExecutionExpression(ExecutableElement element, List<PacketParameter> parameters, int versionIndex, int connectionIndex) throws PacketCompileException {
 		StringBuilder args = new StringBuilder();
-		
+
 		int i = 0;
 		for(var it = parameters.iterator(); ; i++) {
 			if(i == versionIndex) {
@@ -219,11 +219,14 @@ public final class Packet {
 			} else if(i == connectionIndex) {
 				args.append("connection");
 			} else {
+				if(!it.hasNext())
+					break;
+
 				args.append(it.next().dataName());
 			}
-			
+
 			boolean isLast = i >= versionIndex && i >= connectionIndex && !it.hasNext();
-			
+
 			if(isLast) {
 				break;
 			} else {

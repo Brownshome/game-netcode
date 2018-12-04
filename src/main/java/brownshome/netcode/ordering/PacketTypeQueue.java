@@ -138,7 +138,7 @@ class PacketTypeQueue {
 		}
 
 		//Move the packet to PROCESSING
-		manager.deliverPacket(oldestPacket);
+		manager.executePacket(oldestPacket);
 		processing.add(oldestPacket);
 		received.remove();
 
