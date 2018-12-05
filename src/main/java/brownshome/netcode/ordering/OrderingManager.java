@@ -11,6 +11,8 @@ import java.util.function.Consumer;
  * and deposited here. This object then handles dispatching the packets in order to any packet handlers.
  */
 public class OrderingManager {
+	public static final int MAXIMUM_OUTSTANDING_PACKETS = 1024;
+
 	/*
 	 * Care must be taken to ensure that integer wraparound does not break the ordering of the priority queue, when a packet
 	 * is added, an additional check is performed to make sure that it is not both smaller than or equal to the smallest
@@ -29,6 +31,9 @@ public class OrderingManager {
 
 	private Integer trim = null;
 	private SequencedPacket mostRecentPacket = null;
+
+	/** This is a list of all packets that are RECEIVED or PROCESSING */
+	private int packetsWaiting = 0;
 
 	/**
 	 * Constructs and ordering manager
@@ -70,16 +75,23 @@ public class OrderingManager {
 	 *               A - B compared to 0, with later sequence numbers coming later. This avoids overflow issues
 	 *               as long as the numbers are not more than Integer.MAX_VALUE apart.
 	 *
-	 * @throws IllegalArgumentException if the packet cannot be added due to the sequence numbers no longer forming a proper
+	 * @throws InvalidSequenceNumberException if the packet cannot be added due to the sequence numbers no longer forming a proper
 	 *                                  ordering. If this occurs it means that the execution of a packet has most likely
 	 *                                  hung, or failed silently.
+	 *
+	 * @throws ConnectionOverloadedException if the packet cannot be added due to this connection having too many outstanding packets in the queue.
 	 **/
 	public synchronized void deliverPacket(SequencedPacket packet) {
 		//1. check sequence number
 		if(!checkSequenceNumber(packet)) {
-			throw new IllegalArgumentException("The packet sequence number is not valid.");
+			throw new InvalidSequenceNumberException("The packet sequence number is not valid.");
 		}
 
+		if(packetsWaiting >= MAXIMUM_OUTSTANDING_PACKETS) {
+			throw new ConnectionOverloadedException("Connection overloaded, there are too many packets being executed.");
+		}
+
+		packetsWaiting++;
 		var type = packet.packetType();
 
 		//2. place onto the queue
@@ -121,6 +133,10 @@ public class OrderingManager {
 	 * @param packet The packet that was completed
 	 */
 	public void notifyExecutionFinished(Packet packet) {
+		assert packetsWaiting > 0;
+
+		packetsWaiting--;
+
 		var type = new PacketType(packet);
 
 		var queue = getQueue(type);

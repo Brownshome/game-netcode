@@ -9,38 +9,34 @@ import brownshome.netcode.Packet;
  * that it is possible for a < b and b < c but c < a. This is by design, and should be noted when using this
  * class.
  **/
-final class SequencedPacket implements Comparable<SequencedPacket> {
+//TODO possible split this class?
+public final class SequencedPacket implements Comparable<SequencedPacket> {
 	private final PacketType packetType;
-	private Packet packet;
+	private final Packet packet;
 	private final int sequenceNumber;
 
-	SequencedPacket(Packet packet, int sequenceNumber) {
-		this(new PacketType(packet), sequenceNumber);
-
+	public SequencedPacket(Packet packet, int sequenceNumber) {
+		this.sequenceNumber = sequenceNumber;
+		this.packetType = new PacketType(packet);
 		this.packet = packet;
 	}
 
-	PacketType packetType() {
+	public PacketType packetType() {
 		return packetType;
 	}
 
-	Packet packet() {
+	public Packet packet() {
 		return packet;
 	}
 
-	int sequenceNumber() {
+	public int sequenceNumber() {
 		return sequenceNumber;
 	}
 
-	SequencedPacket(PacketType type, int sequenceNumber) {
+	public SequencedPacket(PacketType type, int sequenceNumber) {
 		this.packetType = type;
+		this.packet = null;
 		this.sequenceNumber = sequenceNumber;
-	}
-
-	void setPacketReceived(Packet packet) {
-		assert new PacketType(packet).equals(packetType);
-
-		this.packet = packet;
 	}
 
 	@Override

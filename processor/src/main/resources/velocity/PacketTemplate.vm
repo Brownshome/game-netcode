@@ -71,12 +71,16 @@ public final class ${packet.name()}Packet extends Packet {
 	
 	@Override
 	public void handle(Connection<?> connection, int minorVersion) throws NetworkException {
-		${packet.executionExpression()};
+		try {
+			${packet.executionExpression()};
+		} catch(Throwable t) {
+			throw new NetworkException(t, connection);
+		}
 	}
 
 #if ( $packet.isReliable() )
 	@Override
-	public boolean isReliable() {
+	public boolean reliable() {
 		return true;
 	}
 #end

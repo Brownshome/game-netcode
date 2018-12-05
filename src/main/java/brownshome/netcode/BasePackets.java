@@ -14,7 +14,7 @@ public final class BasePackets {
 	private BasePackets() {  }
 	
 	@DefinePacket(name = "Hello")
-	public static void sayHelloBack(@ConnectionParam Connection<?> connection, int numberOfWaves) {
+	static void sayHelloBack(@ConnectionParam Connection<?> connection, int numberOfWaves) {
 		System.out.println(String.format("Hello! (%d left)", numberOfWaves));
 		
 		if(numberOfWaves != 0)
@@ -22,7 +22,7 @@ public final class BasePackets {
 	}
 	
 	@DefinePacket(name = "NegotiateProtocol")
-	public static void sendProtocolBack(@ConnectionParam Connection<?> connection, @UseConverter(Schema.SchemaConverter.class) List<Schema> schemas) {
+	static void sendProtocolBack(@ConnectionParam Connection<?> connection, @UseConverter(Schema.SchemaConverter.class) List<Schema> schemas) {
 		assert connection instanceof NetworkConnection;
 
 		Protocol.ProtocolNegotiation negotiationResult = Protocol.negotiateProtocol(schemas, connection.connectionManager().schemas());
@@ -33,21 +33,26 @@ public final class BasePackets {
 	}
 	
 	@DefinePacket(name = "NegotiationFailed")
-	public static void negotiationFailed(@ConnectionParam Connection<?> connection, String reason) {
+	static void negotiationFailed(@ConnectionParam Connection<?> connection, String reason) {
 		LOGGER.severe(String.format("Error negotiating schema with '%s': %s", connection.address(), reason));
 	}
 	
 	@DefinePacket(name = "ConfirmProtocol")
-	public static void confirmProtocol(@ConnectionParam Connection<?> connection, Protocol protocol) {
+	static void confirmProtocol(@ConnectionParam Connection<?> connection, Protocol protocol) {
 		assert connection instanceof NetworkConnection;
 
 		((NetworkConnection) connection).receiveConfirmPacket(protocol);
 	}
 
 	@DefinePacket(name = "CloseConnection")
-	public static void closeConnection(@ConnectionParam Connection<?> connection) {
+	static void closeConnection(@ConnectionParam Connection<?> connection) {
 		assert connection instanceof NetworkConnection;
 
 		((NetworkConnection) connection).receiveClosePacket();
+	}
+
+	@DefinePacket(name = "Error")
+	static void error(@ConnectionParam Connection<?> connection, String message) {
+		LOGGER.severe(String.format("Unexpected error handling packet for '%s': %s", connection.address(), message));
 	}
 }
