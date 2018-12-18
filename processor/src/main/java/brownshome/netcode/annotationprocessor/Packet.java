@@ -136,7 +136,13 @@ public final class Packet {
 					childConverterType = mte.getTypeMirror();
 				}
 
-				ConverterExpression converter = findConverter(parameter.asType(), childConverterType, env);
+				ConverterExpression converter;
+				try {
+					converter = findConverter(parameter.asType(), childConverterType, env);
+				} catch(PacketCompileException pce) {
+					throw new PacketCompileException(pce.getMessage(), parameter);
+				}
+
 				this.parameters.add(new PacketParameter(parameter, converter));
 			}
 		}
@@ -165,7 +171,7 @@ public final class Packet {
 		executionExpression = generateExecutionExpression(element, this.parameters, versionIndex, connectionIndex);
 	}
 
-	private ConverterExpression findConverter(TypeMirror parameter, TypeMirror baseConverter, ProcessingEnvironment env) {
+	private ConverterExpression findConverter(TypeMirror parameter, TypeMirror baseConverter, ProcessingEnvironment env) throws PacketCompileException {
 		Types types = env.getTypeUtils();
 
 		TypeMirror string = env.getElementUtils().getTypeElement("java.lang.String").asType();
@@ -193,6 +199,10 @@ public final class Packet {
 
 		if(types.isAssignable(parameter, networkable)) {
 			return new NetworkableConverter();
+		}
+
+		if(baseConverter == null) {
+			throw new PacketCompileException("No converter found for " + parameter.toString());
 		}
 
 		return new CustomConverter(baseConverter.toString());

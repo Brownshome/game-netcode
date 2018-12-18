@@ -2,7 +2,6 @@ package brownshome.netcode.udp;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ProtocolFamily;
 import java.net.SocketAddress;
 import java.net.StandardProtocolFamily;
 import java.nio.ByteBuffer;
@@ -14,17 +13,22 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import brownshome.netcode.Connection;
 import brownshome.netcode.ConnectionManager;
 import brownshome.netcode.Schema;
 
 /** Represents a UDP connection that is bound to a single port on the machine. */
 public class UDPConnectionManager implements ConnectionManager<InetSocketAddress, UDPConnection> {
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	private static final ThreadGroup UDP_SEND_THREAD_GROUP = new ThreadGroup("UDP-Send");
+
+	static {
+		UDP_SEND_THREAD_GROUP.setDaemon(true);
+	}
 
 	private final List<Schema> schema;
 	private final DatagramChannel channel;
@@ -60,6 +64,10 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 	private final Map<SocketAddress, UDPConnection> connections = new HashMap<>();
 
 	private final Thread listenerThread;
+
+	/** This is a single threaded executor that should be used to dispatch items to the channel. */
+	private final ScheduledThreadPoolExecutor submissionThread = new ScheduledThreadPoolExecutor(1,
+			task -> new Thread(UDP_SEND_THREAD_GROUP, task, "UDP-Send-" + address()));
 
 	public UDPConnectionManager(List<Schema> schema, int port) throws IOException {
 		this.schema = schema;
@@ -104,6 +112,10 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		listenerThread.start();
 	}
 
+	ScheduledThreadPoolExecutor submissionThread() {
+		return submissionThread;
+	}
+
 	public UDPConnectionManager(List<Schema> schema) throws IOException {
 		this(schema, 0);
 	}
@@ -118,7 +130,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		executors.put(name, new DroppingExecutor(executor, concurrency));
 	}
 
-	public void executeOn(Runnable runner, String thread) {
+	void executeOn(Runnable runner, String thread) {
 		executors.get(thread).execute(runner);
 	}
 
@@ -150,11 +162,12 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		listenerThread.interrupt();
 	}
 
-	public DatagramChannel channel() {
+	DatagramChannel channel() {
 		return channel;
 	}
 
-	public InetSocketAddress getAddress() {
+	@Override
+	public InetSocketAddress address() {
 		return address;
 	}
 }

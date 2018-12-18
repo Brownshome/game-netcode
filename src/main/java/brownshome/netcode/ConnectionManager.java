@@ -30,4 +30,10 @@ public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRES
 	 */
 	@Override
 	void close();
+
+	/**
+	 * Gets the address of this connection manager. This is the address that other clients should connect to if they want
+	 * to connect to this manager.
+	 */
+	ADDRESS address();
 }

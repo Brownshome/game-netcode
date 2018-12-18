@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import brownshome.netcode.annotation.converter.Converter;
 import brownshome.netcode.sizing.NetworkObjectSize;
 
 public final class NetworkUtils {

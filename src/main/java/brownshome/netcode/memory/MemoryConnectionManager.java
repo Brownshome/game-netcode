@@ -100,4 +100,9 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 			}
 		}
 	}
+
+	@Override
+	public MemoryConnectionManager address() {
+		return this;
+	}
 }
