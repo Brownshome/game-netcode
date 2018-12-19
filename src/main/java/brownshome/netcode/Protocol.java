@@ -103,6 +103,9 @@ public final class Protocol implements Networkable {
 	
 	public int computePacketID(Packet packet) {
 		SchemaAllocation allocation = nameToSchemaMapping.get(packet.schemaName());
+
+		assert allocation != null : "Unknown schema " + packet.schemaName();
+
 		return allocation.startID + packet.packetID();
 	}
 	

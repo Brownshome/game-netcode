@@ -67,11 +67,18 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		this.address = address;
 		this.state = State.NO_CONNECTION;
 		this.stateLock = new ReentrantReadWriteLock();
-		this.protocol = Protocol.baseProtocol();
+		this.protocol = baseProtocol();
 		this.sendBuffer = new ArrayList<>();
 		this.flusher = new ConnectionFlusher(this);
 
 		flusher.start();
+	}
+
+	/**
+	 * This method returns the default set of protocols that are used to communicate before the connection is negotiated
+	 */
+	protected Protocol baseProtocol() {
+		return Protocol.baseProtocol();
 	}
 
 	@Override

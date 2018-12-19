@@ -1,13 +1,15 @@
 package brownshome.netcode.udp;
 
-import brownshome.netcode.NetworkConnection;
-import brownshome.netcode.NetworkException;
-import brownshome.netcode.Packet;
+import brownshome.netcode.*;
+import brownshome.netcode.ordering.OrderingManager;
+import brownshome.netcode.ordering.SequencedPacket;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -32,14 +34,58 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	private final UDPConnectionManager manager;
 
-	private long localSalt, remoteSalt;
+	private final long localSalt;
+	private long remoteSalt;
+
+	/** This queue is used to store packets before the connection is connected, and they can be executed. It is null when
+	 * the connection is connected. */
+	private List<Packet> preConnectQueue = new ArrayList<>();
+	private final OrderingManager orderingManager;
+	private int sequenceNumber = 0;
 
 	private CompletableFuture<Void> udpConnectionResponse;
 
 	public UDPConnection(UDPConnectionManager manager, InetSocketAddress other) {
 		super(other);
 
+		this.orderingManager = new OrderingManager(this::execute, this::drop);
 		this.manager = manager;
+
+		synchronized(SALT_PROVIDER) {
+			localSalt = SALT_PROVIDER.nextLong();
+		}
+	}
+
+	/**
+	 * This method returns the default set of protocols that are used to communicate before the connection is negotiated
+	 */
+	@Override
+	protected Protocol baseProtocol() {
+		// We need the UDP schema as well as the base schema
+		return new Protocol(List.of(new BaseSchema(0), new UDPSchema(0)));
+	}
+
+	/**
+	 * Called by the ordering system when this incoming packet can be executed.
+	 */
+	private synchronized void execute(Packet packet) {
+		manager.executeOn(() -> {
+			try {
+				protocol().handle(this, packet);
+			} catch(NetworkException ne) {
+				send(new ErrorPacket(ne.getMessage()));
+			}
+
+			orderingManager.notifyExecutionFinished(packet);
+
+			if(packet.reliable()) {
+				// TODO notify of execution of reliable packet
+			}
+		}, packet.handledBy());
+	}
+
+	private void drop(Packet packet) {
+		// TODO signal dropped packet.
 	}
 
 	@Override
@@ -47,10 +93,6 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		// We sent the connect packet until we get a response.
 
 		// As the message resend system is not yet useful as there are no acks, we pick a sensible resend delay.
-
-		synchronized(SALT_PROVIDER) {
-			localSalt = SALT_PROVIDER.nextLong();
-		}
 
 		ConnectPacket packet = new ConnectPacket(localSalt, null);
 
@@ -105,7 +147,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		return manager;
 	}
 
-	protected void receive(ByteBuffer buffer) {
+	void receive(ByteBuffer buffer) {
 		Packet incoming = protocol().createPacket(buffer);
 
 		LOGGER.info(() -> String.format("Address '%s' received '%s'", address(), incoming.toString()));
@@ -115,24 +157,48 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		}, incoming.handledBy());
 	}
 
-	public void receiveConnectPacket(long clientSalt) {
+	void receiveConnectPacket(long clientSalt) {
 		remoteSalt = clientSalt;
+
+		// TODO create the connecting state machine
+
+		int hash = UDPPackets.hashChallengePacket(remoteSalt, localSalt());
+
+		ChallengePacket challengePacket = new ChallengePacket(hash, localSalt());
+		ByteBuffer buffer = ByteBuffer.allocate(challengePacket.size() + Integer.BYTES);
+		buffer.putInt(protocol().computePacketID(challengePacket));
+		challengePacket.write(buffer);
+		buffer.flip();
+
+		try {
+			manager.channel().send(buffer, address());
+		} catch(IOException io) {
+			throw new NetworkException("Unable to send challenge packet to " + address(), this);
+		}
 	}
 
-	public long localSalt() {
+	long localSalt() {
 		return localSalt;
 	}
 
-	public void connectionDenied() {
+	void connectionDenied() {
 		udpConnectionResponse.completeExceptionally(new NetworkException("The connection was denied", this));
 	}
 
-	public void receiveChallengeSalt(long serverSalt) {
+	void receiveChallengeSalt(long serverSalt) {
 		remoteSalt = serverSalt;
 		udpConnectionResponse.complete(null);
 	}
 
-	public void receiveBlockOfMessages(ByteBuffer messages) {
+	void receiveBlockOfMessages(ByteBuffer messages) {
+		while(messages.hasRemaining()) {
+			Packet incoming = protocol().createPacket(messages);
 
+			LOGGER.info(() -> String.format("Address '%s' received '%s'", address(), incoming.toString()));
+
+			// Dispatch the packet to the execution queue.
+			// TODO threadsafe
+			orderingManager.deliverPacket(new SequencedPacket(incoming, sequenceNumber++));
+		}
 	}
 }

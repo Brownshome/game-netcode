@@ -5,7 +5,7 @@ import brownshome.netcode.annotation.converter.Converter;
 import java.nio.ByteBuffer;
 
 public class Padding implements Converter<Void> {
-	public static final int PADDING = 1024;
+	public static final int PADDING = 200;
 	public static final byte[] PADDING_DATA = new byte[PADDING];
 
 	/**

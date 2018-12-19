@@ -125,6 +125,17 @@ public class UDPPackets {
 		}
 	}
 
+	/**
+	 * Creates a hash for a challenge packet, the remote salt is the client salt, and the localSalt is the server salt.
+	 */
+	public static int hashChallengePacket(long clientSalt, long serverSalt) {
+		CRC32 crc = new CRC32();
+		update(crc, clientSalt);
+		update(crc, serverSalt);
+
+		return (int) crc.getValue();
+	}
+
 	private static void update(CRC32 crc, long val) {
 		crc.update((int) (val));
 		crc.update((int) (val << 8));
