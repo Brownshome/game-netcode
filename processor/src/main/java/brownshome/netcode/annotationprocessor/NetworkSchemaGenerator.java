@@ -51,9 +51,8 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 			}
 			
 			//Create the packet description.
-			int i = 0;
 			for(Element element : roundEnv.getElementsAnnotatedWith(DefinePacket.class)) {
-				Packet packet = new Packet((ExecutableElement) element, processingEnv, i++);
+				Packet packet = new Packet((ExecutableElement) element, processingEnv);
 				packet.schema().addPacket(packet);
 				
 				try(Writer writer = filer.createSourceFile(packet.packageName() + "." + packet.name() + "Packet").openWriter()) {

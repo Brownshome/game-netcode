@@ -101,7 +101,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		packet.write(buffer);
 		buffer.flip();
 
-		CompletableFuture<Void> udpConnectionResponse = new CompletableFuture<>();
+		udpConnectionResponse = new CompletableFuture<>();
 
 		ScheduledFuture<?> scheduledFuture = manager.submissionThread().scheduleAtFixedRate(new Runnable() {
 			int attempts = 0;

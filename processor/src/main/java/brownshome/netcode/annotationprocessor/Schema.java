@@ -31,6 +31,8 @@ public class Schema {
 	private final String packageName, shortName;
 	private final List<Packet> packetDefinitions;
 	
+	private int freeId = 0;
+	
 	public Schema(PackageElement element) {
 		DefineSchema schema = element.getAnnotation(DefineSchema.class);
 		
@@ -90,5 +92,10 @@ public class Schema {
 
 	public static Collection<Schema> allSchema() {
 		return PACKAGE_MAPPING.values();
+	}
+
+	/** Allocates the next free id in this packet schema for the supplied packet. */
+	public int allocateId() {
+		return freeId++;
 	}
 }

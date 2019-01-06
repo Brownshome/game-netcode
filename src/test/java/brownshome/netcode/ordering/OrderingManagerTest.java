@@ -37,12 +37,12 @@ class OrderingManagerTest {
 
 		try {
 			manager.deliverPacket(c);
-			fail();
+			fail("");
 		} catch(IllegalArgumentException expected) {  }
 
 		try {
 			manager.preDeliverPacket(c);
-			fail();
+			fail("");
 		} catch(IllegalArgumentException expected) {  }
 	}
 }

@@ -62,9 +62,7 @@ public final class Packet {
 	/** Special parameters, -1 means that they are not included in the method call. */
 	private final int versionIndex, connectionIndex;
 
-	public Packet(ExecutableElement element, ProcessingEnvironment env, int id) throws PacketCompileException {
-		this.id = id;
-		
+	public Packet(ExecutableElement element, ProcessingEnvironment env) throws PacketCompileException {
 		//Extract all of the present annotations
 		
 
@@ -167,6 +165,8 @@ public final class Packet {
 		}
 
 		schema = tmp;
+		
+		id = schema.allocateId();
 		
 		executionExpression = generateExecutionExpression(element, this.parameters, versionIndex, connectionIndex);
 	}

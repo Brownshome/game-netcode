@@ -112,9 +112,9 @@ public final class Protocol implements Networkable {
 	/**
 	 * Decodes a packet into a packet object.
 	 * @param buffer The raw data for the packet, with the position at the ID of the packet.
-	 * @throws NetworkException If the ID is not valid, or there is any other error thrown during packet decoding.
+	 * @throws IllegalArgumentException If the ID is not valid, or there is any other error thrown during packet decoding.
 	 */
-	public Packet createPacket(ByteBuffer buffer) throws NetworkException {
+	public Packet createPacket(ByteBuffer buffer) throws IllegalArgumentException {
 		int id = buffer.getInt();
 		
 		SchemaAllocation allocation = IDToSchemaMapping.get(id);
