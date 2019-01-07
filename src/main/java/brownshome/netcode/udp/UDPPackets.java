@@ -77,7 +77,14 @@ public class UDPPackets {
 	//Client to Server
 	@DefinePacket(name = "Connect")
 	public static void connect(@ConnectionParam Connection<?> connection, long clientSalt, @UseConverter(Padding.class) Void unused) {
-		var udpConnection = (UDPConnection) connection;
+		UDPConnection udpConnection;
+
+		try {
+			udpConnection = (UDPConnection) connection;
+		} catch(ClassCastException cce) {
+			throw new IllegalStateException("'Connect' can only be received by a UDP connection", cce);
+		}
+
 		udpConnection.receiveConnectPacket(clientSalt);
 	}
 
@@ -85,7 +92,13 @@ public class UDPPackets {
 	//Hash should equal hash(clientSalt)
 	@DefinePacket(name = "ConnectionDenied")
 	public static void connectionDenied(@ConnectionParam Connection<?> connection, int hash) {
-		var udpConnection = (UDPConnection) connection;
+		UDPConnection udpConnection;
+
+		try {
+			udpConnection = (UDPConnection) connection;
+		} catch(ClassCastException cce) {
+			throw new IllegalStateException("'ConnectionDenied' can only be received by a UDP connection", cce);
+		}
 
 		long salt = udpConnection.localSalt();
 
@@ -107,7 +120,13 @@ public class UDPPackets {
 	 */
 	@DefinePacket(name = "Challenge")
 	public static void challenge(@ConnectionParam Connection<?> connection, int hash, long serverSalt) {
-		var udpConnection = (UDPConnection) connection;
+		UDPConnection udpConnection;
+
+		try {
+			udpConnection = (UDPConnection) connection;
+		} catch(ClassCastException cce) {
+			throw new IllegalStateException("'Challenge' can only be received by a UDP connection", cce);
+		}
 
 		long localSalt = udpConnection.localSalt();
 
@@ -165,7 +184,13 @@ public class UDPPackets {
 	 */
 	@DefinePacket(name = "UDPData")
 	public static void udpData(@ConnectionParam Connection<?> connection, int hash, int acks, int sequenceNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer messages) {
-		var udpConnection = (UDPConnection) connection;
+		UDPConnection udpConnection;
+
+		try {
+			udpConnection = (UDPConnection) connection;
+		} catch(ClassCastException cce) {
+			throw new IllegalStateException("'UDPData' can only be received by a UDP connection", cce);
+		}
 
 		long localSalt = udpConnection.localSalt();
 
@@ -180,7 +205,43 @@ public class UDPPackets {
 			//Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
 		} else {
-			udpConnection.receiveBlockOfMessages(messages);
+			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
+			udpConnection.receiveBlockOfMessages(sequenceNumber, messages);
+		}
+	}
+
+	/**
+	 * This is called when a fragment arrives, the ack and hashes are the same as the UDP data packets, and they follow the same system.
+	 *
+	 * Fragments are sent with a size of 1024 Bytes of fragment data, the fragmentNumber is the place that this fragment goes in the re-assembly buffer. FragmentSetID determines which
+	 * set of fragments this one is a part of.
+	 */
+	@DefinePacket(name = "UDPFragment")
+	public static void udpFragment(@ConnectionParam Connection<?> connection, int hash, int acks, int sequenceNumber, byte fragmentSetID,
+	                               short fragmentNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer fragmentData) {
+		UDPConnection udpConnection;
+
+		try {
+			udpConnection = (UDPConnection) connection;
+		} catch(ClassCastException cce) {
+			throw new IllegalStateException("'UDPFragment' can only be received by a UDP connection", cce);
+		}
+
+		long localSalt = udpConnection.localSalt();
+
+		CRC32 crc = new CRC32();
+		update(crc, localSalt);
+		update(crc, acks);
+		update(crc, sequenceNumber);
+		crc.update(fragmentData.duplicate());
+		int digest = (int) crc.getValue();
+
+		if(hash != digest) {
+			//Ignore the packet, this is corrupt, or malicious
+			LOGGER.info("Corrupt fragment received from '" + connection.address() + "'");
+		} else {
+			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
+			udpConnection.receiveFragment(sequenceNumber, Byte.toUnsignedInt(fragmentSetID), Short.toUnsignedInt(fragmentNumber), fragmentData);
 		}
 	}
 }

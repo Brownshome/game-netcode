@@ -6,10 +6,10 @@ import brownshome.netcode.ordering.SequencedPacket;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -31,19 +31,104 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 	private static final long CONNECT_RESEND_DELAY_MS = 100;
+	private static final int FRAGMENT_SIZE = 1024;
 
 	private final UDPConnectionManager manager;
 
+	/** The salt used by this connection object */
 	private final long localSalt;
+	/** The salt used by the remote connection object */
 	private long remoteSalt;
 
 	/** This queue is used to store packets before the connection is connected, and they can be executed. It is null when
 	 * the connection is connected. */
 	private List<Packet> preConnectQueue = new ArrayList<>();
+
 	private final OrderingManager orderingManager;
 	private int sequenceNumber = 0;
 
 	private CompletableFuture<Void> udpConnectionResponse;
+
+	/** Represents a set of fragments that are being received. */
+	final static class FragmentSet {
+		private final BitSet receivedPackets = new BitSet();
+		private int receivedCount = 0;
+
+		private byte[] data = null;
+
+		/** This is -1 if the length of the packet is as yet unknown */
+		private int length = -1;
+
+		/** The sequence number of fragment 0 */
+		private int firstPacketNumber = -1;
+
+		/** Returns true if all of the fragments have been received. */
+		boolean done() {
+			if(length == -1)
+				return false;
+
+			// +1 because there always needs to be a fragment with size != FRAGMENT_SIZE
+			return receivedCount == length / FRAGMENT_SIZE + 1;
+		}
+
+		void receivedFragment(int sequenceNumber, int fragmentNo, ByteBuffer buffer) {
+			if(receivedPackets.get(fragmentNo)) {
+				return; //This data has already been received, not sure if this is possible??
+			}
+
+			if(fragmentNo == 0) {
+				firstPacketNumber = sequenceNumber;
+			}
+
+			receivedCount++;
+			receivedPackets.set(fragmentNo);
+
+			if(buffer.remaining() < FRAGMENT_SIZE) {
+				//This is the last fragment
+				length = fragmentNo * FRAGMENT_SIZE + buffer.remaining();
+
+				if(data == null) {
+					data = new byte[length];
+				} else if(data.length < length) {
+					data = Arrays.copyOf(data, length);
+				}
+			}
+
+			if(data == null) {
+				//This gives a conservative estimate of 32k for the fragmented packet
+				data = new byte[Math.max((fragmentNo + 1) * 2, 32) * FRAGMENT_SIZE];
+			} else if(length == -1 && data.length < (fragmentNo + 1) * FRAGMENT_SIZE) {
+				//We don't know the length and the buffer is probably too small, resize it to double the size.
+				data = Arrays.copyOf(data, data.length * 2);
+			}
+
+			//Data exists now, and is an appropriate size, copy it into the master buffer
+			buffer.get(data, fragmentNo * FRAGMENT_SIZE, buffer.remaining());
+		}
+
+		/**
+		 * This must only be called when done() returns true
+		 */
+		ByteBuffer createDataBuffer() {
+			assert done();
+
+			return ByteBuffer.wrap(data, 0, length);
+		}
+
+		/**
+		 * Returns the sequence number that should be associated with this packet. This is the sequence number of the
+		 * first fragment.
+		 *
+		 * This must only be called when done() is true
+		 */
+		int sequenceNumber() {
+			assert done();
+
+			return firstPacketNumber;
+		}
+	}
+
+	private final Map<Integer, FragmentSet> fragmentSets = new HashMap<>();
 
 	public UDPConnection(UDPConnectionManager manager, InetSocketAddress other) {
 		super(other);
@@ -190,15 +275,50 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		udpConnectionResponse.complete(null);
 	}
 
-	void receiveBlockOfMessages(ByteBuffer messages) {
+	private void receiveMessage(int packetNumber, int messageNumber, ByteBuffer data) {
+		Packet incoming = protocol().createPacket(data);
+
+		LOGGER.info(() -> String.format("Address '%s' received '%s'", address(), incoming.toString()));
+
+		// Dispatch the packet to the execution queue.
+		// TODO threadsafe
+		orderingManager.deliverPacket(new SequencedPacket(incoming, packetNumber * MessageScheduler.MAXIMUM_MESSAGES_PER_PACKET + messageNumber));
+	}
+
+	void receiveBlockOfMessages(int sequenceNumber, ByteBuffer messages) {
+		int messageNumber = 0;
 		while(messages.hasRemaining()) {
-			Packet incoming = protocol().createPacket(messages);
-
-			LOGGER.info(() -> String.format("Address '%s' received '%s'", address(), incoming.toString()));
-
-			// Dispatch the packet to the execution queue.
-			// TODO threadsafe
-			orderingManager.deliverPacket(new SequencedPacket(incoming, sequenceNumber++));
+			receiveMessage(sequenceNumber, messageNumber++, messages);
 		}
+	}
+
+	/**
+	 * Called by the networking system when a fragment packet is received.
+	 * @param fragmentSet the set of fragments that this fragment belongs to.
+	 * @param fragmentNo the number of this fragment.
+	 * @param fragmentData the data that arrived. If this data is smaller than FRAGMENT_SIZE then it is the last fragment.
+	 */
+	void receiveFragment(int packetSequenceNumber, int fragmentSet, int fragmentNo, ByteBuffer fragmentData) {
+		assert fragmentSet >= 0;
+		assert fragmentNo >= 0;
+
+		if(fragmentData.remaining() > FRAGMENT_SIZE) {
+			throw new IllegalArgumentException("Fragment buffer too large");
+		}
+
+		FragmentSet set = fragmentSets.computeIfAbsent(fragmentNo, unused -> new FragmentSet());
+		set.receivedFragment(packetSequenceNumber, fragmentNo, fragmentData);
+
+		if(set.done()) {
+			receiveMessage(set.sequenceNumber(), 0, set.createDataBuffer());
+			fragmentSets.remove(fragmentSet);
+		}
+	}
+
+	/**
+	 * Called when an ack is received, this should be used to communicate completed transmission.
+	 **/
+	void receiveAcks(Ack ack) {
+		//TODO
 	}
 }
