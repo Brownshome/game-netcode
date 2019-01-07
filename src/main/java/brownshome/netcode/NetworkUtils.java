@@ -14,7 +14,9 @@ import brownshome.netcode.sizing.NetworkObjectSize;
 public final class NetworkUtils {
 	public static final NetworkObjectSize INT_SIZE = new NetworkObjectSize(Integer.BYTES, true, true);
 	public static final NetworkObjectSize LONG_SIZE = new NetworkObjectSize(Long.BYTES, true, true);
-	
+	public static final NetworkObjectSize BYTE_SIZE = new NetworkObjectSize(Byte.BYTES, true, true);
+	public static final NetworkObjectSize SHORT_SIZE = new NetworkObjectSize(Short.BYTES, true, true);
+
 	/** This constant of 3 occurs when the char 0xFFFF is encoded. */
 	private static final int MAXIMUM_UTF8_BYTES_PER_CHAR = 3;
 	

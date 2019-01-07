@@ -7,7 +7,7 @@ import java.lang.annotation.Target;
 
 @Target(METHOD)
 @Documented
-/** Sets the priority of this packet. Higher priority packets are prioritised. */
+/** Sets the priority of this packet. Higher priority packets are prioritised. Packet priority must be >= 0 */
 public @interface WithPriority {
 	int value();
 }
