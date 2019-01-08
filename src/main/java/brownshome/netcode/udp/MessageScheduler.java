@@ -3,8 +3,11 @@ package brownshome.netcode.udp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.PriorityQueue;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
+import brownshome.netcode.ErrorPacket;
 import brownshome.netcode.Packet;
 
 /** 
@@ -57,22 +60,25 @@ final class MessageScheduler {
 	 */
 
 	/** This is a conservative estimate for the number of bytes of data that can fit in the body of a packet. Leaving ample space for headers. */
-	public static final int MTU = 1024;
+	static final int MTU = 1024;
 
 	/** This number is used to delimit sequence numbers: SEQ = PACKET_SEQ * MAXIMUM_MESSAGES_PER_PACKET + MESSAGE_NO */
-	public static final int MAXIMUM_MESSAGES_PER_PACKET = 128;
+	static final int MAXIMUM_MESSAGES_PER_PACKET = 128;
 
 	/** Tuning parameter, relating the the aging rate 1/500 = + priority every 500ms */
 	private static final double A = 1.0 / 500.0;
-	
+
 	/** Estimated round trip time. */
-	private Duration rttEstimate = Duration.ofMillis(200);
+	private Duration rttEstimate;
 	
-	/** Estimated bandwidth in MB/s */
-	private double bandwidthEstimate = 1.0;
+	/** Estimated bandwidth in B/s */
+	private double bandwidthEstimate;
+
+	private long bytesToSend = 0;
+	private Instant lastSend = Instant.now();
 	
 	/** Estimated packet loss (1.0 - 0.0) */
-	private double packetLoss = 0.0;
+	private double packetLoss;
 
 	/** The connection object that messages are dispatched to. */
 	private final UDPConnection connection;
@@ -80,21 +86,96 @@ final class MessageScheduler {
 	/** Now is stored centrally to ensure that comparators operate to specification. */
 	private Instant now;
 
-	/** The queue of messages that need to be sent */
-	PriorityQueue<Packet> sendQueue;
+	/** The set of messages that need to be sent */
+	private final Set<ScheduledPacket> packets;
+
+	/** A struct that represents a sent group of messages. */
+	private static final class SentPacket {
+		final Collection<ScheduledPacket> packets;
+		final Collection<CompletableFuture<Void>> futures;
+		final int sequenceNumber;
+		final Instant timeSent;
+
+		SentPacket(Collection<ScheduledPacket> packets, Collection<CompletableFuture<Void>> futures,
+		           int sequenceNumber, Instant timeSent) {
+			this.packets = packets;
+			this.futures = futures;
+			this.sequenceNumber = sequenceNumber;
+			this.timeSent = timeSent;
+		}
+	}
+
+	/** The mapping of ack numbers to the packets that they match to. */
+	private final LinkedHashMap<Integer, SentPacket> sequenceMapping;
 	
 	MessageScheduler(UDPConnection connection) {
 		this.connection = connection;
+		rttEstimate = Duration.ofMillis(200);
+		bandwidthEstimate = 1e6;
+		packetLoss = 0.0;
+		packets = new HashSet<>();
+		sequenceMapping = new LinkedHashMap<>();
+
+		connection.connectionManager().submissionThread().scheduleAtFixedRate(this::queuePackets, 0, 1, TimeUnit.MILLISECONDS);
 	}
-	
+
+	/** This method is called every X time units to trigger the packet sending code. */
+	private void queuePackets() {
+		now = Instant.now();
+
+		// TODO blocking mechanics
+
+		// Sort the packet
+		List<ScheduledPacket> sortedPackets = new ArrayList<>();
+		sortedPackets.addAll(packets);
+		sortedPackets.sort(null);
+
+		// Calculate bandwidth
+		bytesToSend += (lastSend.until(now, ChronoUnit.NANOS) / 1e9) * bandwidthEstimate;
+		bytesToSend = Math.min(UDPConnectionManager.BUFFER_SIZE, bytesToSend);
+
+		// While there is bandwidth left, send packets
+		while(bytesToSend > 0) {
+			// Send packet
+		}
+	}
+
 	/** This is called when an ack is received for a particular group of messages. */
 	void ackReceived(Ack ack) {
-		// TODO notify reliable packets, estimate RTT, estimate packet loss
+		// TODO estimate packet loss
+
+		for(int sequenceNumber : ack.ackedPackets) {
+			SentPacket packet = sequenceMapping.remove(sequenceNumber);
+
+			if(packet == null) {
+				continue;
+			}
+
+			packets.removeAll(packet.packets);
+
+			for(CompletableFuture<Void> future : packet.futures) {
+				future.complete(null);
+			}
+
+			Duration rtt = Duration.between(packet.timeSent, Instant.now());
+
+			updateRttEstimate(rtt);
+		}
 	}
-	
+
+	private static int RUNNING_AVG_LENGTH = 10;
+
+	private void updateRttEstimate(Duration rtt) {
+		rttEstimate = rttEstimate.multipliedBy(RUNNING_AVG_LENGTH - 1).plus(rtt).dividedBy(RUNNING_AVG_LENGTH);
+	}
+
 	/** Schedules a packet into the messaging queue. The packet order is defined by the order in which this method is called. */
-	void schedulePacket(Packet packet) {
-		
+	CompletableFuture<Void> schedulePacket(Packet packet) {
+		var future = new CompletableFuture<Void>();
+
+		packets.add(new ScheduledPacket(packet, future));
+
+		return future;
 	}
 
 	/** This is the change that a packet sent at time X will eventually arrive, given that an ack has not been received. */
@@ -109,24 +190,29 @@ final class MessageScheduler {
 	}
 
 	/** Represents a packet that has been dispatched to the UDP scheduler */
-	private final class ScheduledPacket {
+	private final class ScheduledPacket implements Comparable<ScheduledPacket> {
 		final Packet packet;
 		final Instant scheduled;
+		final CompletableFuture<Void> future;
 
 		double chance;
 
-		ScheduledPacket(Packet packet) {
+		ScheduledPacket(Packet packet, CompletableFuture<Void> future) {
 			this.packet = packet;
 			this.scheduled = MessageScheduler.this.now;
 			this.chance = 0.0;
+			this.future = future;
 		}
-
-
 
 		double score() {
 			double ageScale = scheduled.until(now, ChronoUnit.MILLIS) * A;
 
 			return (packet.priority() + packet.priority() * ageScale) * (1.0 - chance);
+		}
+
+		@Override
+		public int compareTo(ScheduledPacket o) {
+			return Double.compare(score(), o.score());
 		}
 	}
 }

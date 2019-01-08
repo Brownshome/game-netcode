@@ -1,9 +1,7 @@
 package brownshome.netcode.udp;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.net.StandardProtocolFamily;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.DatagramChannel;
@@ -25,6 +23,8 @@ import brownshome.netcode.Schema;
 public class UDPConnectionManager implements ConnectionManager<InetSocketAddress, UDPConnection> {
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 	private static final ThreadGroup UDP_SEND_THREAD_GROUP = new ThreadGroup("UDP-Send");
+
+	public static final int BUFFER_SIZE = 16 * 1024 * 1024;
 
 	static {
 		UDP_SEND_THREAD_GROUP.setDaemon(true);
@@ -73,6 +73,10 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		this.schema = schema;
 
 		channel = DatagramChannel.open(StandardProtocolFamily.INET6);
+
+		// Increase the buffer sizes to allow larger bursts of traffic.
+		channel.setOption(StandardSocketOptions.SO_SNDBUF, BUFFER_SIZE);
+		channel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
 
 		if(port == 0) {
 			channel.bind(null);

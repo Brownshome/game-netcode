@@ -45,7 +45,8 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private List<Packet> preConnectQueue = new ArrayList<>();
 
 	private final OrderingManager orderingManager;
-	private int sequenceNumber = 0;
+
+	private final MessageScheduler messageScheduler;
 
 	private CompletableFuture<Void> udpConnectionResponse;
 
@@ -135,6 +136,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 		this.orderingManager = new OrderingManager(this::execute, this::drop);
 		this.manager = manager;
+		this.messageScheduler = new MessageScheduler(this);
 
 		synchronized(SALT_PROVIDER) {
 			localSalt = SALT_PROVIDER.nextLong();
@@ -162,15 +164,20 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 			}
 
 			orderingManager.notifyExecutionFinished(packet);
-
-			if(packet.reliable()) {
-				// TODO notify of execution of reliable packet
-			}
 		}, packet.handledBy());
 	}
 
+	/**
+	 * This is called by the execution system when a packet cannot be executed due to ordering constraints.
+	 **/
 	private void drop(Packet packet) {
-		// TODO signal dropped packet.
+		String dropMsg = "Packet '" + packet + "' was dropped due to ordering constraints";
+
+		LOGGER.warning(dropMsg);
+
+		if(packet.reliable()) {
+			send(new ErrorPacket(dropMsg));
+		}
 	}
 
 	@Override
@@ -217,14 +224,8 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	@Override
 	public CompletableFuture<Void> sendWithoutStateChecks(Packet packet) {
-		ByteBuffer buffer = ByteBuffer.allocate(packet.size() + Integer.BYTES);
-		buffer.putInt(protocol().computePacketID(packet));
-		packet.write(buffer);
-		buffer.flip();
-
 		//Place the buffer into the message queue
-
-		return CompletableFuture.completedFuture(null);
+		return messageScheduler.schedulePacket(packet);
 	}
 
 	@Override
@@ -245,7 +246,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	void receiveConnectPacket(long clientSalt) {
 		remoteSalt = clientSalt;
 
-		// TODO create the connecting state machine
+		// TODO create the connecting state machine, with proper rejection of connection packets received at odd times.
 
 		int hash = UDPPackets.hashChallengePacket(remoteSalt, localSalt());
 
@@ -319,6 +320,6 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	 * Called when an ack is received, this should be used to communicate completed transmission.
 	 **/
 	void receiveAcks(Ack ack) {
-		//TODO
+		messageScheduler.ackReceived(ack);
 	}
 }
