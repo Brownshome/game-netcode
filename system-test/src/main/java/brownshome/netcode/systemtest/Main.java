@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.logging.LogManager;
 
 import brownshome.netcode.*;
 import brownshome.netcode.memory.MemoryConnectionManager;
@@ -13,7 +14,17 @@ import brownshome.netcode.udp.UDPConnectionManager;
 import brownshome.netcode.udp.UDPSchema;
 
 public class Main {
+	private static void setupLogging() {
+		try {
+			LogManager.getLogManager().readConfiguration(Main.class.getResourceAsStream("/logging.properties"));
+		} catch(IOException e) {
+			throw new IllegalStateException("Unable to find logging configuration file", e);
+		}
+	}
+
 	public static void main(String[] args) throws InterruptedException, IOException {
+		setupLogging();
+
 		List<Schema> protocol = List.of(new BaseSchema(), new UDPSchema(), new TestSchema());
 
 		UDPConnectionManager clientConnectionManager = new UDPConnectionManager(protocol, 25565);
