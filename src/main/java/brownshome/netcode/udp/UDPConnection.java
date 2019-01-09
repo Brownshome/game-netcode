@@ -219,7 +219,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		//This also triggers on cancels and exceptional failures
 		udpConnectionResponse.whenComplete((v, t) -> scheduledFuture.cancel(false));
 
-		return udpConnectionResponse.thenCombine(super.connect(), (a, b) -> null);
+		return udpConnectionResponse.thenCompose(v -> super.connect());
 	}
 
 	@Override
@@ -232,6 +232,21 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	public UDPConnectionManager connectionManager() {
 		return manager;
 	}
+
+	/* ***********    PACKET ENCODING SYSTEMS    *********** */
+
+	// TODO intelligent packet ID compression (Byte Short ect)
+
+	int calculateEncodedLength(Packet packet) {
+		return packet.size() + Integer.BYTES;
+	}
+
+	void encode(ByteBuffer buffer, Packet packet) {
+		buffer.putInt(protocol().computePacketID(packet));
+		packet.write(buffer);
+	}
+
+	/* *********** CALLBACKS FROM PACKET RECEIVE *********** */
 
 	void receive(ByteBuffer buffer) {
 		Packet incoming = protocol().createPacket(buffer);
@@ -265,6 +280,10 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	long localSalt() {
 		return localSalt;
+	}
+
+	long remoteSalt() {
+		return remoteSalt;
 	}
 
 	void connectionDenied() {
@@ -321,5 +340,9 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	 **/
 	void receiveAcks(Ack ack) {
 		messageScheduler.ackReceived(ack);
+	}
+
+	void receiveSequenceNumber(int sequenceNumber) {
+		messageScheduler.receiveSequenceNumber(sequenceNumber);
 	}
 }

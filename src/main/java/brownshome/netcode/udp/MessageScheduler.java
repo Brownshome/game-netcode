@@ -1,11 +1,15 @@
 package brownshome.netcode.udp;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import brownshome.netcode.ErrorPacket;
 import brownshome.netcode.Packet;
@@ -28,6 +32,8 @@ import brownshome.netcode.Packet;
  * introduced to ensure that bandwidth is not wasted on connection overheads.
  **/
 final class MessageScheduler {
+	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+
 	/*
 
 	Packet accumulate score depending on:
@@ -89,6 +95,13 @@ final class MessageScheduler {
 	/** The set of messages that need to be sent */
 	private final Set<ScheduledPacket> packets;
 
+	/* ******** ACK VARIABLES ********** */
+
+	/** The sequence number of the next packet to be sent */
+	private int sequenceNumber = 0;
+
+	private final AckSender ackSender = new AckSender();
+
 	/** A struct that represents a sent group of messages. */
 	private static final class SentPacket {
 		final Collection<ScheduledPacket> packets;
@@ -126,8 +139,7 @@ final class MessageScheduler {
 		// TODO blocking mechanics
 
 		// Sort the packet
-		List<ScheduledPacket> sortedPackets = new ArrayList<>();
-		sortedPackets.addAll(packets);
+		List<ScheduledPacket> sortedPackets = new ArrayList<>(packets);
 		sortedPackets.sort(null);
 
 		// Calculate bandwidth
@@ -135,9 +147,69 @@ final class MessageScheduler {
 		bytesToSend = Math.min(UDPConnectionManager.BUFFER_SIZE, bytesToSend);
 
 		// While there is bandwidth left, send packets
-		while(bytesToSend > 0) {
+		// This index is one past the last packet to be sent in this burst
+		int sendIndex = 0;
+		while(sendIndex < sortedPackets.size() && bytesToSend > 0) {
 			// Send packet
+			ScheduledPacket nextSend = sortedPackets.get(sendIndex++);
+			bytesToSend -= nextSend.remainingData();
 		}
+
+		// TODO fragmentation
+		// TODO pack packets into packets more intelligently.
+		// TODO limit copies of data
+
+		List<ScheduledPacket> packetsToSend = new LinkedList<>(sortedPackets.subList(0, sendIndex));
+		packetsToSend.sort(Comparator.comparingInt(ScheduledPacket::remainingData));
+
+		while(!packetsToSend.isEmpty()) {
+			ByteBuffer buffer = ByteBuffer.allocate(MTU);
+
+			for(ListIterator<ScheduledPacket> it = packetsToSend.listIterator(); it.hasNext(); ) {
+				ScheduledPacket next = it.next();
+
+				if(buffer.remaining() < next.remainingData()) {
+					continue;
+				}
+
+				if(!next.packet.reliable()) {
+					next.future.complete(null);
+				} else {
+					throw new UnsupportedOperationException();
+				}
+
+				it.remove();
+
+				next.write(buffer);
+			}
+
+			buffer.flip();
+
+			int nextSequenceNumberByAcks = ackSender.mostRecentAck() + 1;
+			if(nextSequenceNumberByAcks - sequenceNumber > 0) {
+				sequenceNumber = nextSequenceNumberByAcks;
+			}
+
+			int acks = ackSender.createAckField(sequenceNumber);
+			int hash = UDPPackets.hashDataPacket(connection.remoteSalt(), acks, sequenceNumber, buffer.duplicate());
+			UDPDataPacket aggregatePacket = new UDPDataPacket(hash, acks, sequenceNumber, buffer);
+
+			sequenceNumber++;
+			ByteBuffer aggregateBuffer = ByteBuffer.allocate(connection.calculateEncodedLength(aggregatePacket));
+			connection.encode(aggregateBuffer, aggregatePacket);
+			aggregateBuffer.flip();
+
+			try {
+				connection.connectionManager().channel().send(aggregateBuffer, connection.address());
+			} catch(IOException e) {
+				LOGGER.log(Level.SEVERE, "Unable to send", e);
+				// TODO close connection
+				throw new RuntimeException(e);
+			}
+		}
+
+		//TODO remove this line
+		packets.clear();
 	}
 
 	/** This is called when an ack is received for a particular group of messages. */
@@ -163,6 +235,10 @@ final class MessageScheduler {
 		}
 	}
 
+	void receiveSequenceNumber(int sequenceNumber) {
+		ackSender.receivedPacket(sequenceNumber);
+	}
+
 	private static int RUNNING_AVG_LENGTH = 10;
 
 	private void updateRttEstimate(Duration rtt) {
@@ -178,7 +254,7 @@ final class MessageScheduler {
 		return future;
 	}
 
-	/** This is the change that a packet sent at time X will eventually arrive, given that an ack has not been received. */
+	/** This is the chance that a packet sent at time X will eventually arrive, given that an ack has not been received. */
 	private double chanceOfPacketArriving(Instant timeSent) {
 		Duration largerThanRTT = rttEstimate.multipliedBy(2);
 
@@ -196,12 +272,55 @@ final class MessageScheduler {
 		final CompletableFuture<Void> future;
 
 		double chance;
+		ByteBuffer buffer;
 
 		ScheduledPacket(Packet packet, CompletableFuture<Void> future) {
 			this.packet = packet;
 			this.scheduled = MessageScheduler.this.now;
 			this.chance = 0.0;
 			this.future = future;
+		}
+
+		/**
+		 * This writes as much packet data as is left in the buffer. If the buffer is too small the write is only partial,
+		 * and further calls to write will write more data.
+		 **/
+		void write(ByteBuffer out) {
+			if(buffer == null) {
+				// There is no buffer, this is the first write, check for fragmentation
+
+				if(out.remaining() < connection.calculateEncodedLength(packet)) {
+					assert false : "Fragments are not yet supported";
+
+					buffer = ByteBuffer.allocate(connection.calculateEncodedLength(packet));
+					connection.encode(buffer, packet);
+					buffer.flip();
+
+					// Now that we have created the buffer we can write
+					write(out);
+				} else {
+					connection.encode(out, packet);
+				}
+			} else {
+				assert false : "Fragments are not yet supported";
+
+				// Buffer is not null, write out data from the buffer
+
+				int transfer = Math.min(buffer.remaining(), out.remaining());
+
+				int oldLimit = buffer.limit();
+				buffer.limit(buffer.position() + transfer);
+				out.put(buffer);
+				buffer.limit(oldLimit);
+			}
+		}
+
+		int remainingData() {
+			if(buffer == null) {
+				return connection.calculateEncodedLength(packet);
+			} else {
+				return buffer.remaining();
+			}
 		}
 
 		double score() {

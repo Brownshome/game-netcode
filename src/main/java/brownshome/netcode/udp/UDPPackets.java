@@ -155,6 +155,19 @@ public class UDPPackets {
 		return (int) crc.getValue();
 	}
 
+	/**
+	 * Creates a hash for a data packet, the remote salt is the client salt, and the localSalt is the server salt.
+	 */
+	public static int hashDataPacket(long remoteSalt, int acks, int sequenceNumber, ByteBuffer messages) {
+		CRC32 crc = new CRC32();
+		update(crc, remoteSalt);
+		update(crc, acks);
+		update(crc, sequenceNumber);
+		crc.update(messages);
+
+		return (int) crc.getValue();
+	}
+
 	private static void update(CRC32 crc, long val) {
 		crc.update((int) (val));
 		crc.update((int) (val << 8));
