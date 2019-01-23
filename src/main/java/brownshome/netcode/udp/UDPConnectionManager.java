@@ -8,10 +8,7 @@ import java.nio.channels.DatagramChannel;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -164,6 +161,11 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		}
 
 		listenerThread.interrupt();
+
+		try {
+			submissionThread.shutdown();
+			submissionThread.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+		} catch(InterruptedException e) { /* Stop waiting */ }
 	}
 
 	DatagramChannel channel() {

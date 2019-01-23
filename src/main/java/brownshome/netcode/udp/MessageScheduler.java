@@ -8,10 +8,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import brownshome.netcode.ErrorPacket;
 import brownshome.netcode.Packet;
 
 /** 
@@ -81,8 +81,8 @@ final class MessageScheduler {
 	private double bandwidthEstimate;
 
 	private long bytesToSend = 0;
-	private Instant lastSend = Instant.now();
-	
+	private Instant lastSendAttempt = Instant.now();
+
 	/** Estimated packet loss (1.0 - 0.0) */
 	private double packetLoss;
 
@@ -100,7 +100,14 @@ final class MessageScheduler {
 	/** The sequence number of the next packet to be sent */
 	private int sequenceNumber = 0;
 
+	/** True if a reliable packet has been received since the last send. */
+	private AtomicBoolean outstandingReliableAcks = new AtomicBoolean(false);
+
 	private final AckSender ackSender = new AckSender();
+
+	private CompletableFuture<Void> acksSentFuture = null;
+
+
 
 	/** A struct that represents a sent group of messages. */
 	private static final class SentPacket {
@@ -133,7 +140,7 @@ final class MessageScheduler {
 	}
 
 	/** This method is called every X time units to trigger the packet sending code. */
-	private void queuePackets() {
+	private synchronized void queuePackets() {
 		now = Instant.now();
 
 		// TODO blocking mechanics
@@ -143,16 +150,70 @@ final class MessageScheduler {
 		sortedPackets.sort(null);
 
 		// Calculate bandwidth
-		bytesToSend += (lastSend.until(now, ChronoUnit.NANOS) / 1e9) * bandwidthEstimate;
+		bytesToSend += (lastSendAttempt.until(now, ChronoUnit.NANOS) / 1e9) * bandwidthEstimate;
 		bytesToSend = Math.min(UDPConnectionManager.BUFFER_SIZE, bytesToSend);
 
+		boolean priorFlag = outstandingReliableAcks.getAndSet(false); //If the flag is set after this time, then we need to trigger the send next cycle.
+
+		int sent = assembleAndSendMessages(sortedPackets);
+		bytesToSend -= sent;
+
+		if(sent == 0) {
+			if(priorFlag) {
+				// Keep it false, as this clears the flag, if someone set it to true in the meantime pick it up on the next iteration
+
+				LOGGER.fine("Sending ack-only packet to '" + connection.address() + "'");
+
+				sendDirectlyToChannel(createUDPDataPacket(ByteBuffer.allocate(0)));
+			}
+		}
+
+		if(acksSentFuture != null && !acksSentFuture.isDone()) {
+			acksSentFuture.complete(null);
+		}
+
+		//TODO remove this line
+		packets.clear();
+
+		lastSendAttempt = now;
+	}
+
+	/**
+	 * A future that will be triggered when all acks that need to be sent have been sent.
+	 */
+	synchronized CompletableFuture<Void> closeMessageSchedulerFuture() {
+		if(acksSentFuture != null) {
+			return acksSentFuture;
+		} else if(outstandingReliableAcks.get()) {
+			return acksSentFuture = new CompletableFuture<>();
+		} else {
+			return acksSentFuture = CompletableFuture.completedFuture(null);
+		}
+	}
+
+	/** Ensures that an ack will be sent in a timely manor, regardless of if data needs to be sent. */
+	synchronized void flagReliableAck() {
+		outstandingReliableAcks.set(true);
+	}
+
+	/** This sends up to bytesToSend bytes of data, and returns the amount of data actually sent */
+	private int assembleAndSendMessages(List<ScheduledPacket> sortedPackets) {
 		// While there is bandwidth left, send packets
 		// This index is one past the last packet to be sent in this burst
+
 		int sendIndex = 0;
-		while(sendIndex < sortedPackets.size() && bytesToSend > 0) {
+		int bytesSent = 0;
+
+		while(sendIndex < sortedPackets.size()) {
 			// Send packet
-			ScheduledPacket nextSend = sortedPackets.get(sendIndex++);
-			bytesToSend -= nextSend.remainingData();
+
+			ScheduledPacket nextSend = sortedPackets.get(sendIndex);
+			if(bytesToSend - bytesSent < nextSend.remainingData()) {
+				break;
+			}
+
+			sendIndex++;
+			bytesSent += nextSend.remainingData();
 		}
 
 		// TODO fragmentation
@@ -163,6 +224,9 @@ final class MessageScheduler {
 		packetsToSend.sort(Comparator.comparingInt(ScheduledPacket::remainingData));
 
 		while(!packetsToSend.isEmpty()) {
+			Collection<ScheduledPacket> packetsSent = new ArrayList<>();
+			Collection<CompletableFuture<Void>> reliableFutures = new ArrayList<>();
+
 			ByteBuffer buffer = ByteBuffer.allocate(MTU);
 
 			for(ListIterator<ScheduledPacket> it = packetsToSend.listIterator(); it.hasNext(); ) {
@@ -175,45 +239,59 @@ final class MessageScheduler {
 				if(!next.packet.reliable()) {
 					next.future.complete(null);
 				} else {
-					throw new UnsupportedOperationException();
+					reliableFutures.add(next.future);
 				}
 
 				it.remove();
 
+				packetsSent.add(next);
 				next.write(buffer);
 			}
 
 			buffer.flip();
 
-			int nextSequenceNumberByAcks = ackSender.mostRecentAck() + 1;
-			if(nextSequenceNumberByAcks - sequenceNumber > 0) {
-				sequenceNumber = nextSequenceNumberByAcks;
-			}
+			UDPDataPacket aggregatePacket = createUDPDataPacket(buffer);
+			sendDirectlyToChannel(aggregatePacket);
 
-			int acks = ackSender.createAckField(sequenceNumber);
-			int hash = UDPPackets.hashDataPacket(connection.remoteSalt(), acks, sequenceNumber, buffer.duplicate());
-			UDPDataPacket aggregatePacket = new UDPDataPacket(hash, acks, sequenceNumber, buffer);
-
-			sequenceNumber++;
-			ByteBuffer aggregateBuffer = ByteBuffer.allocate(connection.calculateEncodedLength(aggregatePacket));
-			connection.encode(aggregateBuffer, aggregatePacket);
-			aggregateBuffer.flip();
-
-			try {
-				connection.connectionManager().channel().send(aggregateBuffer, connection.address());
-			} catch(IOException e) {
-				LOGGER.log(Level.SEVERE, "Unable to send", e);
-				// TODO close connection
-				throw new RuntimeException(e);
-			}
+			//Make the entry in the sentPackets table
+			sequenceMapping.put(aggregatePacket.sequenceNumberData, new SentPacket(packetsSent, reliableFutures, aggregatePacket.sequenceNumberData, now));
 		}
 
-		//TODO remove this line
-		packets.clear();
+		return bytesSent;
+	}
+
+	/** Dispatches a packet directly to the channel */
+	private void sendDirectlyToChannel(Packet packet) {
+		ByteBuffer aggregateBuffer = ByteBuffer.allocate(connection.calculateEncodedLength(packet));
+		connection.encode(aggregateBuffer, packet);
+		aggregateBuffer.flip();
+
+		try {
+			connection.connectionManager().channel().send(aggregateBuffer, connection.address());
+		} catch(IOException e) {
+			LOGGER.log(Level.SEVERE, "Unable to send", e);
+			// TODO close connection
+			throw new RuntimeException(e);
+		}
+	}
+
+	/** Creates a UDPDataPacket with the given buffer */
+	private UDPDataPacket createUDPDataPacket(ByteBuffer buffer) {
+		int nextSequenceNumberByAcks = ackSender.mostRecentAck() + 1;
+		if(nextSequenceNumberByAcks - sequenceNumber > 0) {
+			sequenceNumber = nextSequenceNumberByAcks;
+		}
+
+		int acks = ackSender.createAckField(sequenceNumber);
+		int hash = UDPPackets.hashDataPacket(connection.remoteSalt(), acks, sequenceNumber, buffer.duplicate());
+
+		return new UDPDataPacket(hash, acks, sequenceNumber++, buffer);
 	}
 
 	/** This is called when an ack is received for a particular group of messages. */
-	void ackReceived(Ack ack) {
+	synchronized void ackReceived(Ack ack) {
+		LOGGER.fine("Remote address '" + connection.address() + "' sent acks for '" + Arrays.toString(ack.ackedPackets) + "'");
+
 		// TODO estimate packet loss
 
 		for(int sequenceNumber : ack.ackedPackets) {
@@ -235,7 +313,9 @@ final class MessageScheduler {
 		}
 	}
 
-	void receiveSequenceNumber(int sequenceNumber) {
+	synchronized void receiveSequenceNumber(int sequenceNumber) {
+		LOGGER.fine("Remote address '" + connection.address() + "' sent sequence number '" + sequenceNumber + "'");
+
 		ackSender.receivedPacket(sequenceNumber);
 	}
 
@@ -246,7 +326,9 @@ final class MessageScheduler {
 	}
 
 	/** Schedules a packet into the messaging queue. The packet order is defined by the order in which this method is called. */
-	CompletableFuture<Void> schedulePacket(Packet packet) {
+	synchronized CompletableFuture<Void> schedulePacket(Packet packet) {
+		LOGGER.fine("Scheduled '" + packet + "' for sending to '" + connection.address() + "'");
+
 		var future = new CompletableFuture<Void>();
 
 		packets.add(new ScheduledPacket(packet, future));

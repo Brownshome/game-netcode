@@ -218,6 +218,7 @@ public class UDPPackets {
 			//Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
 		} else {
+			udpConnection.receiveSequenceNumber(sequenceNumber);
 			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
 			udpConnection.receiveBlockOfMessages(sequenceNumber, messages);
 		}
@@ -253,6 +254,7 @@ public class UDPPackets {
 			//Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt fragment received from '" + connection.address() + "'");
 		} else {
+			udpConnection.receiveSequenceNumber(sequenceNumber);
 			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
 			udpConnection.receiveFragment(sequenceNumber, Byte.toUnsignedInt(fragmentSetID), Short.toUnsignedInt(fragmentNumber), fragmentData);
 		}

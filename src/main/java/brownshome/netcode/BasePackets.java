@@ -2,6 +2,7 @@ package brownshome.netcode;
 
 import brownshome.netcode.annotation.ConnectionParam;
 import brownshome.netcode.annotation.DefinePacket;
+import brownshome.netcode.annotation.MakeReliable;
 import brownshome.netcode.annotation.converter.UseConverter;
 
 import java.util.List;
@@ -14,6 +15,7 @@ public final class BasePackets {
 	private BasePackets() {  }
 	
 	@DefinePacket(name = "Hello")
+	@MakeReliable
 	static void sayHelloBack(@ConnectionParam Connection<?> connection, int numberOfWaves) {
 		System.out.println(String.format("Hello! (%d left)", numberOfWaves));
 		
@@ -22,6 +24,7 @@ public final class BasePackets {
 	}
 	
 	@DefinePacket(name = "NegotiateProtocol")
+	@MakeReliable
 	static void sendProtocolBack(@ConnectionParam Connection<?> connection, @UseConverter(Schema.SchemaConverter.class) List<Schema> schemas) {
 		assert connection instanceof NetworkConnection;
 
@@ -33,11 +36,13 @@ public final class BasePackets {
 	}
 	
 	@DefinePacket(name = "NegotiationFailed")
+	@MakeReliable
 	static void negotiationFailed(@ConnectionParam Connection<?> connection, String reason) {
 		LOGGER.severe(String.format("Error negotiating schema with '%s': %s", connection.address(), reason));
 	}
 	
 	@DefinePacket(name = "ConfirmProtocol")
+	@MakeReliable
 	static void confirmProtocol(@ConnectionParam Connection<?> connection, Protocol protocol) {
 		assert connection instanceof NetworkConnection;
 
@@ -45,6 +50,7 @@ public final class BasePackets {
 	}
 
 	@DefinePacket(name = "CloseConnection")
+	@MakeReliable
 	static void closeConnection(@ConnectionParam Connection<?> connection) {
 		assert connection instanceof NetworkConnection;
 
@@ -52,6 +58,7 @@ public final class BasePackets {
 	}
 
 	@DefinePacket(name = "Error")
+	@MakeReliable
 	static void error(@ConnectionParam Connection<?> connection, String message) {
 		LOGGER.severe(String.format("Unexpected error handling packet for '%s': %s", connection.address(), message));
 	}

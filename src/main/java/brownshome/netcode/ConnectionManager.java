@@ -26,7 +26,9 @@ public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRES
 
 	/**
 	 * This method closes the ConnectionManager, any connections that the manager has open will be closed and any listener
-	 * threads that the manager has open will cease to function.
+	 * threads that the manager has open will cease to function. Any messages that are queued for sending in any of the connections will attempt to send.
+	 *
+	 * Interrupting this method will stop the waiting for message sending.
 	 */
 	@Override
 	void close();

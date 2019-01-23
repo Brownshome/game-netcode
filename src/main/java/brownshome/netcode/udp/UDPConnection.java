@@ -29,7 +29,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	/** The RNG used to produce salts, this may not be threadsafe, so it is protected by a synchronized block on itself */
 	private static final SecureRandom SALT_PROVIDER = new SecureRandom();
 
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode.udp");
 	private static final long CONNECT_RESEND_DELAY_MS = 100;
 	private static final int FRAGMENT_SIZE = 1024;
 
@@ -246,12 +246,23 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		packet.write(buffer);
 	}
 
+	/* *********** OVERRIDE CLOSE METHOD ************* */
+
+	/**
+	 * This method is called by the closing process to return a future that represents and waits that need to occur before the closing process can finish.
+	 * These waits occur at the same time as the closing packet send.
+	 */
+	@Override
+	protected CompletableFuture<Void> localCloseWaits() {
+		return CompletableFuture.allOf(super.localCloseWaits(), messageScheduler.closeMessageSchedulerFuture());
+	}
+
 	/* *********** CALLBACKS FROM PACKET RECEIVE *********** */
 
 	void receive(ByteBuffer buffer) {
 		Packet incoming = protocol().createPacket(buffer);
 
-		LOGGER.info(() -> String.format("Address '%s' received '%s'", address(), incoming.toString()));
+		LOGGER.info(() -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
 
 		manager.executeOn(() -> {
 			protocol().handle(this, incoming);
@@ -298,7 +309,11 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private void receiveMessage(int packetNumber, int messageNumber, ByteBuffer data) {
 		Packet incoming = protocol().createPacket(data);
 
-		LOGGER.info(() -> String.format("Address '%s' received '%s'", address(), incoming.toString()));
+		if(incoming.reliable()) {
+			messageScheduler.flagReliableAck();
+		}
+
+		LOGGER.info(() -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
 
 		// Dispatch the packet to the execution queue.
 		// TODO threadsafe

@@ -75,6 +75,13 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 	}
 
 	/**
+	 * Gets the state of the connection
+	 */
+	protected final State state() {
+		return state;
+	}
+
+	/**
 	 * This method returns the default set of protocols that are used to communicate before the connection is negotiated
 	 */
 	protected Protocol baseProtocol() {
@@ -146,7 +153,7 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		return connectFuture;
 	}
 
-	protected CompletableFuture<Void> closeConnection(boolean sendPacket) {
+	protected final CompletableFuture<Void> closeConnection(boolean sendPacket) {
 		try { stateLock.writeLock().lock();
 			switch(state) {
 				case NO_CONNECTION:
@@ -162,24 +169,21 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 						packet.future.completeExceptionally(new NetworkException("The connection was closed prior to connecting.", this));
 					}
 
-					closeFuture = CompletableFuture.completedFuture(null);
+					closeFuture = localCloseWaits();
 
-					//Stop the flusher thread.
-					flusher.interrupt();
+					postCloseActions();
 
 					return closeFuture;
 				case READY:
 				case NEGOTIATING:
-					CompletableFuture<Void> closeSendFuture = sendPacket
-							? send(new CloseConnectionPacket())
-							: CompletableFuture.completedFuture(null); //If this future fails, fail the closing future.
+					closeFuture = sendPacket
+							? CompletableFuture.allOf(send(new CloseConnectionPacket()), localCloseWaits())
+							: localCloseWaits();
 
 					state = State.CLOSED;
 
-					closeFuture = CompletableFuture.allOf(closeSendFuture, flush());
-
 					//Shut down the flusher
-					closeFuture.thenRun(flusher::interrupt);
+					closeFuture.thenRun(this::postCloseActions);
 
 					return closeFuture;
 				case CLOSED:
@@ -191,8 +195,23 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		} finally { stateLock.writeLock().unlock(); }
 	}
 
+	/**
+	 * This method is called by the closing process to return a future that represents and waits that need to occur before the closing process can finish.
+	 * These waits occur at the same time as the closing packet send.
+	 */
+	protected CompletableFuture<Void> localCloseWaits() {
+		return flush();
+	}
+
+	/**
+	 * This method is called by the closing process after the closing waits, and should be used for any non-blocking closing operations.
+	 */
+	protected void postCloseActions() {
+		flusher.interrupt();
+	}
+
 	@Override
-	public CompletableFuture<Void> closeConnection() {
+	public final CompletableFuture<Void> closeConnection() {
 		return closeConnection(true);
 	}
 

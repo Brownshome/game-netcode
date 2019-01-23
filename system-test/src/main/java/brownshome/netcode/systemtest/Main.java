@@ -39,13 +39,6 @@ public class Main {
 
 		connection.connectSync();
 
-		for(int i = 0; i < 100; i++) {
-			connection.send(new LongProcessingPacket(500l));
-		}
-
-		//As this packet is reliable, this should cause the system to
-		connection.sendSync(new CauseErrorPacket());
-
 		clientConnectionManager.close();
 		serverConnectionManager.close();
 
