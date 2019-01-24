@@ -202,6 +202,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 			public void run() {
 				try {
 					manager.channel().send(buffer.duplicate(), address());
+					flagPacketSend(packet);
 				} catch(IOException e) {
 					udpConnectionResponse.completeExceptionally(e);
 				}
@@ -284,9 +285,14 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 		try {
 			manager.channel().send(buffer, address());
+			flagPacketSend(challengePacket);
 		} catch(IOException io) {
 			throw new NetworkException("Unable to send challenge packet to " + address(), this);
 		}
+	}
+
+	private void flagPacketSend(Packet packet) {
+		LOGGER.fine("Sending '" + packet + "' to '" + address() + "'");
 	}
 
 	long localSalt() {

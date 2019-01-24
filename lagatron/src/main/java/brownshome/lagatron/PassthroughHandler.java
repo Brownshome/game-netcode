@@ -65,7 +65,7 @@ public class PassthroughHandler {
 	static double packetLoss;
 	
 	static volatile boolean running;
-	
+
 	static List<Thread> threads = new ArrayList<>();
 	final static ExecutorService startStopHandler = Executors.newSingleThreadExecutor(r -> {
 		Thread t = new Thread(r, "START STOP THREAD");
@@ -86,28 +86,24 @@ public class PassthroughHandler {
 		
 		//kill existing threads
 		running = false;
-		
-		while(true) {
-			boolean allDead = true;
-			for(Thread thread : threads) {
-				if(thread.isAlive()) {
-					thread.interrupt();
-					allDead = false;
-				}
-			}
-			
-			if(!allDead) {
-				synchronized(PassthroughHandler.class) {
-					try { PassthroughHandler.class.wait(); } catch (InterruptedException e) {}
-				}
-			} else break;
-		}
-		
-		running = true;
-		clientAddress = null;
-		
+
 		if(clientSideSocket != null) clientSideSocket.close();
 		if(serverSideSocket != null) serverSideSocket.close();
+
+		for(Thread thread : threads) {
+			thread.interrupt();
+
+			try {
+				thread.join();
+			} catch(InterruptedException e) {
+				return;
+			}
+		}
+
+		threads.clear();
+
+		running = true;
+		clientAddress = null;
 		
 		try { clientSideSocket = new DatagramSocket(incommingPort); } catch (SocketException e) {
 			System.err.println("Unable to bind to port " + incommingPort);
@@ -214,7 +210,7 @@ public class PassthroughHandler {
 					uploadBandwidth.remove();
 				}
 				
-				usedUpload = uploadBandwidth.stream().mapToLong(packet -> packet.data.length).sum() / 1000;
+				usedUpload = uploadBandwidth.stream().mapToLong(packet -> packet.data.length).sum() / 1000.0;
 			}
 			
 			synchronized(downloadBandwidth) {
@@ -222,10 +218,10 @@ public class PassthroughHandler {
 					downloadBandwidth.remove();
 				}
 				
-				usedDownload = downloadBandwidth.stream().mapToLong(packet -> packet.data.length).sum() / 1000;
+				usedDownload = downloadBandwidth.stream().mapToLong(packet -> packet.data.length).sum() / 1000.0;
 			}
 		}
-		
+
 		synchronized(PassthroughHandler.class) {
 			PassthroughHandler.class.notify();
 		}
@@ -252,8 +248,12 @@ public class PassthroughHandler {
 				//send packet
 				uploadQueue.poll();
 				try {
-					if(packet.isValid()) 
+					if(packet.isValid()) {
 						serverSideSocket.send(new DatagramPacket(packet.data, packet.data.length, serverAddress));
+						System.out.println("Sent client to server packet");
+					} else {
+						System.out.println("Dropped client to server packet");
+					}
 				} catch (IOException e) {
 					System.err.println("Unable to send packet\n" + e.getMessage());
 				}
@@ -291,8 +291,12 @@ public class PassthroughHandler {
 				//send packet
 				downloadQueue.poll();
 				try {
-					if(packet.isValid()) 
-						serverSideSocket.send(new DatagramPacket(packet.data, packet.data.length, clientAddress));
+					if(packet.isValid()) {
+						clientSideSocket.send(new DatagramPacket(packet.data, packet.data.length, clientAddress));
+						System.out.println("Sent server to client packet");
+					} else {
+						System.out.println("Dropped server to client packet");
+					}
 				} catch (IOException e) {
 					System.err.println("Unable to send packet\n" + e.getMessage());
 				}

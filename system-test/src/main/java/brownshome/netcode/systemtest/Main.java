@@ -1,11 +1,13 @@
 package brownshome.netcode.systemtest;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.LogManager;
+import java.util.logging.Logger;
 
 import brownshome.netcode.*;
 import brownshome.netcode.memory.MemoryConnectionManager;
@@ -25,17 +27,19 @@ public class Main {
 	public static void main(String[] args) throws InterruptedException, IOException {
 		setupLogging();
 
+		Logger.getLogger("brownshome.netcode").fine("Fine logging enabled");
+
 		List<Schema> protocol = List.of(new BaseSchema(), new UDPSchema(), new TestSchema());
 
 		UDPConnectionManager clientConnectionManager = new UDPConnectionManager(protocol, 25565);
-		UDPConnectionManager serverConnectionManager = new UDPConnectionManager(protocol, 25566);
+		UDPConnectionManager serverConnectionManager = new UDPConnectionManager(protocol, 25567);
 
 		ExecutorService executor = Executors.newFixedThreadPool(20);
 		
 		serverConnectionManager.registerExecutor("default", executor, 24);
 		clientConnectionManager.registerExecutor("default", executor, 24);
 		
-		Connection<?> connection = clientConnectionManager.getOrCreateConnection(serverConnectionManager.address());
+		Connection<?> connection = clientConnectionManager.getOrCreateConnection(new InetSocketAddress("localhost", 25566));
 
 		connection.connectSync();
 
