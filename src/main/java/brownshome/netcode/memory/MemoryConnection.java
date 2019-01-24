@@ -47,10 +47,9 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 
 		//The order of these operands does not matter.
 		Protocol.ProtocolNegotiation negotiationResult = Protocol.negotiateProtocol(other.schemas(), manager.schemas());
-		this.protocol = negotiationResult.protocol;
 
-		flusher = new ConnectionFlusher(this);
-		flusher.start();
+		this.protocol = negotiationResult.protocol;
+		this.flusher = new ConnectionFlusher();
 	}
 
 	private synchronized void execute(Packet packet) {
@@ -139,10 +138,6 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 			//TODO tell the other connection to shutdown
 
 			closingFuture = flush().thenRun(() -> {
-				//Close down everything
-				//Stop the flusher
-				flusher.interrupt();
-
 				//Remove this connection from the queue
 				//TODO removeConnection();
 			});

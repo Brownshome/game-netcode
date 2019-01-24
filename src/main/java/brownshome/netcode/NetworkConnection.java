@@ -69,9 +69,7 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		this.stateLock = new ReentrantReadWriteLock();
 		this.protocol = baseProtocol();
 		this.sendBuffer = new ArrayList<>();
-		this.flusher = new ConnectionFlusher(this);
-
-		flusher.start();
+		this.flusher = new ConnectionFlusher();
 	}
 
 	/**
@@ -207,7 +205,7 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 	 * This method is called by the closing process after the closing waits, and should be used for any non-blocking closing operations.
 	 */
 	protected void postCloseActions() {
-		flusher.interrupt();
+		/* Take no action */
 	}
 
 	@Override

@@ -1,6 +1,9 @@
 package brownshome.netcode.udp;
 
-/** This is a struct that holds the ack data for a packet. */
+/** This is a struct that holds the ack data for a packet.
+ *
+ * This is an immutable object
+ **/
 final class Ack {
 	/** This array holds all of the packets that were acked in the last packet. */
 	final int[] ackedPackets;

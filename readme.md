@@ -24,3 +24,10 @@ And the following features:
 The annotation system allows the user to define packets by defining a **handler**. A handler is a method that is annotated with the packet definition annotations. This may be a static method, a constructor, or an instance method in a class with a no-argument constructor.
 
 This method will be called by the networking engine when the packet is received. To send a packet a generated object with a name corresponding to the packet name annotation is constructed and then passed to the system.
+
+## TODO
+
+- [ ] Incorrect packet denial
+- [ ] Safe multi-threading
+- [ ] Intelligent packet ordering
+- [ ] Class / structure diagrams
