@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.chart.*?>
+<?import javafx.geometry.*?>
+<?import java.lang.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<SplitPane dividerPositions="0.0" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="600.0" prefWidth="1000.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+   <items>
+      <TabPane prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE">
+        <tabs>
+          <Tab text="Network Use">
+               <content>
+                  <LineChart fx:id="bandwidthChart">
+                    <xAxis>
+                      <CategoryAxis side="BOTTOM" />
+                    </xAxis>
+                    <yAxis>
+                      <NumberAxis side="LEFT" />
+                    </yAxis>
+                  </LineChart>
+               </content>
+            </Tab>
+          <Tab text="Packet Sizes">
+               <content>
+                  <BarChart fx:id="packetSizeChart" animated="false">
+                    <xAxis>
+                      <CategoryAxis side="BOTTOM" />
+                    </xAxis>
+                    <yAxis>
+                      <NumberAxis side="LEFT" />
+                    </yAxis>
+                  </BarChart>
+               </content>
+            </Tab>
+            <Tab text="Packet Send Rate">
+               <content>
+                  <LineChart fx:id="packetSendRateChart" prefHeight="398.0" prefWidth="229.0">
+                    <xAxis>
+                      <CategoryAxis side="BOTTOM" />
+                    </xAxis>
+                    <yAxis>
+                      <NumberAxis side="LEFT" />
+                    </yAxis>
+                  </LineChart>
+               </content>
+            </Tab>
+        </tabs>
+      </TabPane>
+      <VBox maxHeight="Infinity" maxWidth="-Infinity" minWidth="-Infinity" prefHeight="398.0" prefWidth="215.0" spacing="10.0">
+         <children>
+            <TextField fx:id="serverAddressTextBox" promptText="Server Address" />
+            <TextField fx:id="serverPortTextBox" promptText="Server Port" />
+            <TextField fx:id="incommingPortTextBox" promptText="Incomming Port" />
+            <Separator prefWidth="200.0" />
+            <HBox alignment="CENTER_LEFT" spacing="15.0" VBox.vgrow="NEVER">
+               <children>
+                  <Label maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" text="MTU Limit" HBox.hgrow="ALWAYS" />
+                  <TextField fx:id="MTULimitTextBox" maxHeight="-Infinity" maxWidth="-Infinity" promptText="No Limit" />
+               </children>
+            </HBox>
+            <HBox alignment="CENTER_LEFT" spacing="15.0">
+               <children>
+                  <Label maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" text="Bandwidth Limit" HBox.hgrow="ALWAYS" />
+                  <TextField fx:id="bandwidthLimitTextBox" maxHeight="-Infinity" maxWidth="-Infinity" promptText="kbit/s" />
+               </children>
+            </HBox>
+            <HBox alignment="CENTER_LEFT" spacing="15.0">
+               <children>
+                  <Label maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" text="Latency" HBox.hgrow="ALWAYS" />
+                  <HBox alignment="CENTER">
+                     <children>
+                        <TextField fx:id="latencyTextBox" maxHeight="-Infinity" maxWidth="-Infinity" promptText="ms" />
+                        <Label maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" text=" ± " />
+                        <TextField fx:id="jitterTextBox" maxHeight="-Infinity" maxWidth="-Infinity" promptText="ms" />
+                     </children>
+                  </HBox>
+               </children>
+            </HBox>
+            <HBox alignment="CENTER_LEFT" spacing="15.0">
+               <children>
+                  <Label maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" text="Packet Loss" HBox.hgrow="ALWAYS" />
+                  <Slider fx:id="packetLossSlider" minorTickCount="0" showTickLabels="true" showTickMarks="true" snapToTicks="true" />
+               </children>
+            </HBox>
+            <CheckBox fx:id="biDirectionalCheckBox" mnemonicParsing="false" text="Bi-Directional" />
+            <VBox alignment="BOTTOM_CENTER" VBox.vgrow="ALWAYS">
+               <children>
+                  <Button fx:id="startButton" disable="true" maxHeight="60.0" maxWidth="Infinity" mnemonicParsing="false" onAction="#startPassthrough" text="Start Passthrough" VBox.vgrow="ALWAYS" />
+               </children>
+            </VBox>
+         </children>
+         <padding>
+            <Insets bottom="15.0" left="15.0" right="15.0" top="15.0" />
+         </padding>
+      </VBox>
+   </items>
+</SplitPane>

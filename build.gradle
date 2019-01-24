@@ -1,10 +1,15 @@
 plugins {
-	id 'com.zyxist.chainsaw' version '0.3.1'
+	id 'com.zyxist.chainsaw' version '0.3.1' apply false
+	id 'org.openjfx.javafxplugin' version '0.0.7' apply false
 }
 
-allprojects { 
-	apply plugin: (it.name == 'system-test' ? 'application' : 'java-library')
-	apply plugin: 'com.zyxist.chainsaw'
+allprojects {
+	apply plugin: (it.name == 'system-test' || it.name == 'lagatron' ? 'application' : 'java-library')
+	
+	if(it.name != 'lagatron') {
+		apply plugin: 'com.zyxist.chainsaw'
+	}
+	
 	apply plugin: 'eclipse'
 	apply plugin: 'idea'
 	

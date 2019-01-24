@@ -1,0 +1,7 @@
+apply plugin: 'org.openjfx.javafxplugin'
+
+mainClassName = 'brownshome.lagatron/brownshome.lagatron.Lagatron'
+
+javafx {
+	modules = [ 'javafx.controls', 'javafx.fxml' ]
+}
