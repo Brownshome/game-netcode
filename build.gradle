@@ -24,7 +24,23 @@ allprojects {
 			}
 		}
 	}
-	
+
+	task showCompileDeps {
+		doLast {
+			configurations.compileClasspath.each { println it }
+		}
+
+		mustRunAfter classes
+	}
+
+	task showTestDeps {
+		doLast {
+			configurations.testCompileClasspath.each { println it }
+		}
+
+		mustRunAfter classes
+	}
+
 	repositories {
 		mavenCentral()
 	}
