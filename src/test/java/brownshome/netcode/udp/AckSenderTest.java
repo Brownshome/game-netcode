@@ -49,4 +49,20 @@ class AckSenderTest {
 		int field = sender.createAckField(sender.mostRecentAck() + 1);
 		assertEquals(1, field);
 	}
+
+	@Test
+	void testAckSenderOldAck() {
+		AckSender sender = new AckSender();
+
+		sender.receivedPacket(0);
+		sender.receivedPacket(2);
+
+		int field = sender.createAckField(0);
+		assertEquals(0, field);
+		field = sender.createAckField(1);
+		assertEquals(1, field);
+		field = sender.createAckField(2);
+		assertEquals(2, field);
+
+	}
 }

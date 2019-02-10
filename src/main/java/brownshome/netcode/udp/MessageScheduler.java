@@ -98,7 +98,7 @@ final class MessageScheduler {
 	/* ******** ACK VARIABLES ********** */
 
 	/** The sequence number of the next packet to be sent */
-	private int sequenceNumber = 0;
+	private int nextSequenceNumber = 0;
 
 	/** True if a reliable packet has been received since the last send. */
 	private AtomicBoolean outstandingReliableAcks = new AtomicBoolean(false);
@@ -107,21 +107,30 @@ final class MessageScheduler {
 
 	private CompletableFuture<Void> acksSentFuture = null;
 
-
-
 	/** A struct that represents a sent group of messages. */
 	private static final class SentPacket {
 		final Collection<ScheduledPacket> packets;
 		final Collection<CompletableFuture<Void>> futures;
+		final ByteBuffer data;
 		final int sequenceNumber;
-		final Instant timeSent;
+
+		Instant lastTimeSent;
+		int sendCount = 1;
 
 		SentPacket(Collection<ScheduledPacket> packets, Collection<CompletableFuture<Void>> futures,
-		           int sequenceNumber, Instant timeSent) {
+		           int sequenceNumber, Instant timeSent, ByteBuffer buffer) {
 			this.packets = packets;
 			this.futures = futures;
 			this.sequenceNumber = sequenceNumber;
-			this.timeSent = timeSent;
+			lastTimeSent = timeSent;
+			data = buffer;
+		}
+
+		void resend(Instant now) {
+			sendCount++;
+			lastTimeSent = now;
+
+
 		}
 	}
 
@@ -145,17 +154,13 @@ final class MessageScheduler {
 
 		// TODO blocking mechanics
 
-		// Sort the packet
-		List<ScheduledPacket> sortedPackets = new ArrayList<>(packets);
-		sortedPackets.sort(null);
-
 		// Calculate bandwidth
 		bytesToSend += (lastSendAttempt.until(now, ChronoUnit.NANOS) / 1e9) * bandwidthEstimate;
 		bytesToSend = Math.min(UDPConnectionManager.BUFFER_SIZE, bytesToSend);
 
 		boolean priorFlag = outstandingReliableAcks.getAndSet(false); //If the flag is set after this time, then we need to trigger the send next cycle.
 
-		int sent = assembleAndSendMessages(sortedPackets);
+		int sent = assembleAndSendMessages();
 		bytesToSend -= sent;
 
 		if(sent == 0) {
@@ -196,12 +201,15 @@ final class MessageScheduler {
 		outstandingReliableAcks.set(true);
 	}
 
-	/** This sends up to bytesToSend bytes of data, and returns the amount of data actually sent */
-	private int assembleAndSendMessages(List<ScheduledPacket> sortedPackets) {
-		// While there is bandwidth left, send packets
-		// This index is one past the last packet to be sent in this burst
+	/** This sends up to bytesToSend bytes of data, and returns the amount of data actually sent. */
+	private int assembleAndSendMessages() {
+		// The options for sending packets are as follows...
+		// Either resend an old message, or create a new message.
 
-		int sendIndex = 0;
+		// For now, send any old message that has a send time less then now - RTT * 2
+		// If no such message exists send a new packet.
+
+		/*int sendIndex = 0;
 		int bytesSent = 0;
 
 		while(sendIndex < sortedPackets.size()) {
@@ -254,11 +262,15 @@ final class MessageScheduler {
 			sendDirectlyToChannel(aggregatePacket);
 
 			//Make the entry in the sentPackets table
-			sequenceMapping.put(aggregatePacket.sequenceNumberData, new SentPacket(packetsSent, reliableFutures, aggregatePacket.sequenceNumberData, now));
+			sequenceMapping.put(aggregatePacket.sequenceNumberData, new SentPacket(packetsSent, reliableFutures, aggregatePacket.sequenceNumberData, buffer, now));
 		}
 
-		return bytesSent;
+		return bytesSent;*/
+
+		return 0;
 	}
+
+
 
 	/** Dispatches a packet directly to the channel */
 	private void sendDirectlyToChannel(Packet packet) {
@@ -275,17 +287,22 @@ final class MessageScheduler {
 		}
 	}
 
-	/** Creates a UDPDataPacket with the given buffer */
+	/** Creates a UDPDataPacket with the given buffer. Use this for sending new packets. */
 	private UDPDataPacket createUDPDataPacket(ByteBuffer buffer) {
 		int nextSequenceNumberByAcks = ackSender.mostRecentAck() + 1;
-		if(nextSequenceNumberByAcks - sequenceNumber > 0) {
-			sequenceNumber = nextSequenceNumberByAcks;
+		if(nextSequenceNumberByAcks - nextSequenceNumber > 0) {
+			nextSequenceNumber = nextSequenceNumberByAcks;
 		}
 
+		return createUDPDataPacket(buffer, nextSequenceNumber++);
+	}
+
+	/** Creates a UDPDataPacket with the given buffer.use this for resending old packets */
+	private UDPDataPacket createUDPDataPacket(ByteBuffer buffer, int sequenceNumber) {
 		int acks = ackSender.createAckField(sequenceNumber);
 		int hash = UDPPackets.hashDataPacket(connection.remoteSalt(), acks, sequenceNumber, buffer.duplicate());
 
-		return new UDPDataPacket(hash, acks, sequenceNumber++, buffer);
+		return new UDPDataPacket(hash, acks, sequenceNumber, buffer);
 	}
 
 	/** This is called when an ack is received for a particular group of messages. */
@@ -307,7 +324,7 @@ final class MessageScheduler {
 				future.complete(null);
 			}
 
-			Duration rtt = Duration.between(packet.timeSent, Instant.now());
+			Duration rtt = Duration.between(packet.lastTimeSent, Instant.now());
 
 			updateRttEstimate(rtt);
 		}

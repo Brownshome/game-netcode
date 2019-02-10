@@ -41,10 +41,13 @@ final class AckSender {
 		return mostRecentAck;
 	}
 
-	/** Creates a bitfield for a specific sequence number, this number must be greater than the largest sequence number received. */
+	/** Creates a bitfield for a specific sequence number. If this number is smaller than the most recent sequence number then more
+	 * recent acks will not be sent. */
 	int createAckField(int sequenceNumber) {
-		assert sequenceNumber - mostRecentAck > 0;
-
-		return ackField << (sequenceNumber - mostRecentAck - 1);
+		if(sequenceNumber <= mostRecentAck) {
+			return ackField >>> (mostRecentAck - sequenceNumber + 1);
+		} else {
+			return ackField << (sequenceNumber - mostRecentAck - 1);
+		}
 	}
 }
