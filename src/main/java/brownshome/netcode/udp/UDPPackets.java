@@ -130,11 +130,7 @@ public class UDPPackets {
 
 		long localSalt = udpConnection.localSalt();
 
-		CRC32 crc = new CRC32();
-		update(crc, localSalt);
-		update(crc, serverSalt);
-
-		int digest = (int) crc.getValue();
+		int digest = hashChallengePacket(localSalt, serverSalt);
 
 		if(hash != digest) {
 			//Ignore the packet, this is corrupt, or malicious
@@ -157,12 +153,17 @@ public class UDPPackets {
 
 	/**
 	 * Creates a hash for a data packet, the remote salt is the client salt, and the localSalt is the server salt.
+	 *
+	 * The buffer will be consumer in this process
 	 */
-	public static int hashDataPacket(long remoteSalt, int acks, int sequenceNumber, ByteBuffer messages) {
+	public static int hashDataPacket(long remoteSalt, int mostRecentAck, int acks, int sequenceNumber, ByteBuffer messages) {
 		CRC32 crc = new CRC32();
+
 		update(crc, remoteSalt);
+		update(crc, mostRecentAck);
 		update(crc, acks);
 		update(crc, sequenceNumber);
+
 		crc.update(messages);
 
 		return (int) crc.getValue();
@@ -194,9 +195,13 @@ public class UDPPackets {
 	 * content.
 	 *
 	 * Each packet content will contain X messages, where each message is a full packet.
+	 *
+	 * The acks are per UDPData packet. Sequence numbers are used for packet identification. If two packets with the same sequence number are received, then one will be discarded.
 	 */
 	@DefinePacket(name = "UDPData")
-	public static void udpData(@ConnectionParam Connection<?> connection, int hash, int acks, int sequenceNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer messages) {
+	public static void udpData(@ConnectionParam Connection<?> connection, int hash, int mostRecentAck, int acks,
+							   int sequenceNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer messages) {
+
 		UDPConnection udpConnection;
 
 		try {
@@ -207,19 +212,14 @@ public class UDPPackets {
 
 		long localSalt = udpConnection.localSalt();
 
-		CRC32 crc = new CRC32();
-		update(crc, localSalt);
-		update(crc, acks);
-		update(crc, sequenceNumber);
-		crc.update(messages.duplicate());
-		int digest = (int) crc.getValue();
+		int digest = hashDataPacket(localSalt, mostRecentAck, acks, sequenceNumber, messages);
 
 		if(hash != digest) {
 			//Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
 		} else {
 			udpConnection.receiveSequenceNumber(sequenceNumber);
-			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
+			udpConnection.receiveAcks(new Ack(mostRecentAck, acks));
 			udpConnection.receiveBlockOfMessages(sequenceNumber, messages);
 		}
 	}
@@ -234,6 +234,8 @@ public class UDPPackets {
 	public static void udpFragment(@ConnectionParam Connection<?> connection, int hash, int acks, int sequenceNumber, byte fragmentSetID,
 	                               short fragmentNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer fragmentData) {
 		UDPConnection udpConnection;
+
+		// TODO most recent ack.
 
 		try {
 			udpConnection = (UDPConnection) connection;

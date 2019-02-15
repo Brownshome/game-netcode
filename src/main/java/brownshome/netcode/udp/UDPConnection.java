@@ -6,7 +6,6 @@ import brownshome.netcode.ordering.SequencedPacket;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.*;
@@ -314,10 +313,6 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	private void receiveMessage(int packetNumber, int messageNumber, ByteBuffer data) {
 		Packet incoming = protocol().createPacket(data);
-
-		if(incoming.reliable()) {
-			messageScheduler.flagReliableAck();
-		}
 
 		LOGGER.info(() -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
 
