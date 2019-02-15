@@ -1,53 +1,58 @@
 package brownshome.netcode.udp;
 
+import java.util.BitSet;
+
 /** This class records what packets have been received and produces the requested Ack fields for sending. */
 final class AckSender {
-	//Bit n is mostRecentAck - n + 1, where n starts from 1
-	private int ackField;
-
-	//This is the sequence number of the most recent ack
-	private int mostRecentAck;
+	private final BitSet receivedAcks = new BitSet();
+	private final BitSet unsentAcks = new BitSet();
 
 	void receivedPacket(int sequenceNumber) {
-		if(ackField == 0) {
-			mostRecentAck = sequenceNumber;
-			ackField = 1;
-			return;
+		receivedAcks.set(sequenceNumber);
+		unsentAcks.set(sequenceNumber);
+	}
+
+	static final class OutgoingAck {
+		final int largestAck;
+		final int field;
+
+		private OutgoingAck(int largestAck, int field) {
+			this.largestAck = largestAck;
+			this.field = field;
+		}
+	}
+
+	/** Creates an ack field */
+	OutgoingAck createAck() {
+		// TODO use rolling acks, and not BitSet
+
+		int oldestAck, newestAck;
+
+		decideBounds: {
+			oldestAck = unsentAcks.nextSetBit(0);
+
+			if(oldestAck != -1) {
+				newestAck = oldestAck + Integer.SIZE - 1;
+				break decideBounds;
+			}
+
+			newestAck = receivedAcks.length() - 1;
+			oldestAck = newestAck - 1;
 		}
 
-		if(sequenceNumber - mostRecentAck + (Integer.SIZE - 1) < 0) {
-			//The sequenceNumber is out of date, nothing we can do.
-			return;
-		}
+		int field = 0;
 
-		//Rotate forward until mostRecentAck is the sequenceNumber
-		while(sequenceNumber != mostRecentAck) {
-			ackField <<= 1;
-			mostRecentAck++;
+		// bit n = newestAck - n where n goes from 0 to SIZE - 1
+		for(int bit = Integer.SIZE - 1; bit >= 0; bit--) {
+			field <<= 1;
 
-			if(ackField == 0) {
-				mostRecentAck = sequenceNumber;
-				ackField = 1;
-				return;
+			if(newestAck - bit >= 0) {
+				field |= receivedAcks.get(newestAck - bit) ? 1 : 0;
 			}
 		}
 
-		//Set the bit for the most recent ack
-		ackField |= 1;
-	}
+		unsentAcks.clear(Math.max(oldestAck, 0), newestAck + 1);
 
-	/** Gets the sequence number of the most recent packet to be received */
-	int mostRecentAck() {
-		return mostRecentAck;
-	}
-
-	/** Creates a bitfield for a specific sequence number. If this number is smaller than the most recent sequence number then more
-	 * recent acks will not be sent. */
-	int createAckField(int sequenceNumber) {
-		if(sequenceNumber - mostRecentAck <= 0) {
-			return ackField >>> (mostRecentAck - sequenceNumber + 1);
-		} else {
-			return ackField << (sequenceNumber - mostRecentAck - 1);
-		}
+		return new OutgoingAck(newestAck, field);
 	}
 }

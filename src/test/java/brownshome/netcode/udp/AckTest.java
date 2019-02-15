@@ -14,6 +14,6 @@ final class AckTest {
 	@Test
 	void testAcks() {
 		Ack ack = new Ack(50, 0b11010);
-		assertArrayEquals(new int[] { 48, 46, 45 }, ack.ackedPackets);
+		assertArrayEquals(new int[] { 49, 47, 46 }, ack.ackedPackets);
 	}
 }

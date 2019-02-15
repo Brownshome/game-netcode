@@ -2,67 +2,50 @@ package brownshome.netcode.udp;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class AckSenderTest {
-	@Test
-	void testAckSenderEmpty() {
-		AckSender sender = new AckSender();
-
-		int field = sender.createAckField(50);
-		assertEquals(0, field);
+final class AckSenderTest {
+	private Ack decode(AckSender.OutgoingAck ack) {
+		return new Ack(ack.largestAck, ack.field);
 	}
 
 	@Test
-	void testAckSenderRollForward() {
+	void testAckSenderWithNoAcks() {
 		AckSender sender = new AckSender();
+		var ack = sender.createAck();
 
-		sender.receivedPacket(1);
-		sender.receivedPacket(2);
-		sender.receivedPacket(3);
-		sender.receivedPacket(4);
-
-		int field = sender.createAckField(sender.mostRecentAck() + 1);
-		assertEquals(0b1111, field);
+		assertEquals(0, ack.field);
 	}
 
 	@Test
-	void testAckSenderRollOut() {
+	void testAckSenderWithUnsentAcks() {
 		AckSender sender = new AckSender();
-
-		sender.receivedPacket(1);
-		sender.receivedPacket(2);
-		sender.receivedPacket(3);
 		sender.receivedPacket(50);
+		sender.receivedPacket(43);
+		sender.receivedPacket(46);
+		sender.receivedPacket(100);
 
-		int field = sender.createAckField(sender.mostRecentAck() + 1);
-		assertEquals(0b1, field);
+		var ack = decode(sender.createAck());
+
+		assertArrayEquals(new int[] { 50, 46, 43 }, ack.ackedPackets);
+
+		ack = decode(sender.createAck());
+
+		assertArrayEquals(new int[] { 100 }, ack.ackedPackets);
 	}
 
 	@Test
-	void testAckSenderOutOfRangeAck() {
-		AckSender sender = new AckSender();
+	void testAckSenderWithSentAcks() {
 
+		AckSender sender = new AckSender();
 		sender.receivedPacket(50);
-		sender.receivedPacket(0);
+		sender.receivedPacket(43);
+		sender.receivedPacket(46);
 
-		int field = sender.createAckField(sender.mostRecentAck() + 1);
-		assertEquals(1, field);
-	}
+		sender.createAck();
+		var ack = decode(sender.createAck());
 
-	@Test
-	void testAckSenderOldAck() {
-		AckSender sender = new AckSender();
-
-		sender.receivedPacket(0);
-		sender.receivedPacket(2);
-
-		int field = sender.createAckField(0);
-		assertEquals(0, field);
-		field = sender.createAckField(1);
-		assertEquals(1, field);
-		field = sender.createAckField(2);
-		assertEquals(2, field);
-
+		assertArrayEquals(new int[] { 50, 46, 43 }, ack.ackedPackets);
 	}
 }
