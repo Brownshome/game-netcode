@@ -83,7 +83,7 @@ public final class Packet {
 		isReliable = element.getAnnotation(MakeReliable.class) != null;
 
 		WithPriority withPriority = element.getAnnotation(WithPriority.class);
-		priority = handler == null ? 0 : withPriority.value();
+		priority = handler == null ? 1 : withPriority.value();
 
 		List<? extends VariableElement> parameters = element.getParameters();
 
