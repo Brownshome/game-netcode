@@ -6,6 +6,7 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 
 /** Represents a packet that has been dispatched to the UDP scheduler */
 final class ScheduledPacket implements Comparable<ScheduledPacket> {
@@ -94,12 +95,18 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 
 		// TODO
 
-		return 0.0; //enclosingPacket.chanceOfTransit();
+		return scheduler.chanceOfPacketArriving(enclosingPacket.lastSend());
 	}
 
 	@Override
 	public int compareTo(ScheduledPacket o) {
-		return Double.compare(score(), o.score());
+		int scoreCompare = Double.compare(score(), o.score());
+
+		if(scoreCompare == 0) {
+			return Integer.compare(hashCode(), o.hashCode());
+		}
+
+		return scoreCompare;
 	}
 
 	/** Updates tracking and other metrics to indicate that this packet was sent */
@@ -116,5 +123,10 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 
 	ConstructedDataPacket containingPacket() {
 		return enclosingPacket;
+	}
+
+	@Override
+	public String toString() {
+		return packet.toString();
 	}
 }

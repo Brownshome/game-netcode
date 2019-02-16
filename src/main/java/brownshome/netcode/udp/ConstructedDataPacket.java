@@ -59,4 +59,16 @@ final class ConstructedDataPacket {
 	Collection<ScheduledPacket> children() {
 		return childPackets;
 	}
+
+	@Override
+	public String toString() {
+		return "ConstructedDataPacket [SEQ: " + sequenceNumber + ", SUB-PACKETS: " + childPackets + "]";
+	}
+
+	/**
+	 * Returns the last time this packet was sent
+	 */
+	Instant lastSend() {
+		return mostRecentSend;
+	}
 }

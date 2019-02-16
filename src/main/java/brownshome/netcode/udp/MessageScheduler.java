@@ -70,6 +70,9 @@ final class MessageScheduler {
 	/** This number is used to delimit sequence numbers: SEQ = PACKET_SEQ * MAXIMUM_MESSAGES_PER_PACKET + MESSAGE_NO */
 	static final int MAXIMUM_MESSAGES_PER_PACKET = 128;
 
+	/** Score cutoff is used to conserve bandwidth. */
+	static final double SCORE_CUTTOFF = 1.0;
+
 	/** Estimated round trip time. */
 	private Duration rttEstimate;
 	
@@ -101,9 +104,6 @@ final class MessageScheduler {
 	/** The sequence number of the next packet to be sent */
 	private int nextSequenceNumber = 0;
 
-	/** A set of sequence numbers that have been received, and will need to be acked. */
-	private final Set<Integer> requiredAcks = new HashSet<>();
-
 	private final AckSender ackSender = new AckSender();
 
 	/** A future used to signal when all acks have been sent. */
@@ -122,6 +122,8 @@ final class MessageScheduler {
 
 	/** This method is called every X time units to trigger the packet sending code. */
 	private synchronized void queuePackets() {
+		LOGGER.finest("Queueing packets to '" + connection.address() + "'");
+
 		now = Instant.now();
 
 		// TODO blocking mechanics
@@ -141,7 +143,7 @@ final class MessageScheduler {
 	synchronized CompletableFuture<Void> closeMessageSchedulerFuture() {
 		if(acksSentFuture != null) {
 			return acksSentFuture;
-		} else if(!requiredAcks.isEmpty()) {
+		} else if(ackSender.hasUnsentAcks()) {
 			return acksSentFuture = new CompletableFuture<>();
 		} else {
 			return acksSentFuture = CompletableFuture.completedFuture(null);
@@ -154,26 +156,38 @@ final class MessageScheduler {
 		// Either resend an old message, or create a new message.
 
 		if(packetsNotReceived.isEmpty()) {
+			// Send an ack packet
+
+			if(ackSender.hasUnsentAcks()) {
+				sendConstructedDataPacket(new ConstructedDataPacket(nextSequenceNumber++, connection, 0));
+			} else if(acksSentFuture != null) {
+				acksSentFuture.complete(null);
+			}
+
 			return;
 		}
 
-		// Sort the packets
 		TreeSet<ScheduledPacket> sortedPackets = new TreeSet<>(packetsNotReceived);
 
 		// While there is bandwidth left, produce data-packets and send them
 
 		while(!sortedPackets.isEmpty()) {
 			var mostImportantPacket = sortedPackets.first();
+
+			if(mostImportantPacket.score() < SCORE_CUTTOFF) {
+				break;
+			}
+
 			ConstructedDataPacket toSend;
 
 			if(mostImportantPacket.containingPacket() != null && mostImportantPacket.containingPacket().dataBuffer.remaining() <= bytesToSend) {
 				toSend = mostImportantPacket.containingPacket();
 			} else {
 				int length = (int) Math.min(MessageScheduler.MTU, bytesToSend);
-				toSend = new ConstructedDataPacket(nextSequenceNumber++, connection, length);
+				toSend = new ConstructedDataPacket(nextSequenceNumber, connection, length);
 
 				for(var possibleChild : sortedPackets) {
-					if(possibleChild.containingPacket() == null) {
+					if(possibleChild.containingPacket() != null) {
 						continue;
 					}
 
@@ -184,11 +198,13 @@ final class MessageScheduler {
 
 				// Change to send mode.
 				toSend.dataBuffer.flip();
-			}
 
-			if(toSend.children().size() == 0) {
-				// There are no packets that can be sent.
-				break;
+				if(toSend.children().size() == 0) {
+					// There are no packets that can be sent.
+					break;
+				}
+
+				nextSequenceNumber++;
 			}
 
 			sortedPackets.removeAll(toSend.children());
@@ -197,15 +213,20 @@ final class MessageScheduler {
 	}
 
 	private void sendConstructedDataPacket(ConstructedDataPacket toSend) {
+		LOGGER.fine(String.format("Sending '%s' to '%s'", toSend, connection.address()));
+
 		bytesToSend -= toSend.dataBuffer.remaining();
 
-		int largestAck, ackField;
+		sentPackets.put(toSend.sequenceNumber, toSend);
+		toSend.signalSend(now);
 
 		var ack = ackSender.createAck();
 
 		UDPDataPacket packet = new UDPDataPacket(
 				UDPPackets.hashDataPacket(connection.remoteSalt(), ack.largestAck, ack.field, toSend.sequenceNumber, toSend.dataBuffer.duplicate()),
 				ack.largestAck, ack.field, toSend.sequenceNumber, toSend.dataBuffer.duplicate());
+
+		sendDirectlyToChannel(packet);
 	}
 
 	/** Dispatches a packet directly to the channel */
@@ -238,6 +259,10 @@ final class MessageScheduler {
 			}
 
 			ackedDataPacket.signalReceived();
+
+			for(var child : ackedDataPacket.children()) {
+				packetsNotReceived.remove(child);
+			}
 		}
 	}
 
@@ -245,7 +270,6 @@ final class MessageScheduler {
 		LOGGER.fine("Remote address '" + connection.address() + "' sent sequence number '" + sequenceNumber + "'");
 
 		ackSender.receivedPacket(sequenceNumber);
-		requiredAcks.add(sequenceNumber);
 	}
 
 	private static int RUNNING_AVG_LENGTH = 10;
@@ -266,7 +290,7 @@ final class MessageScheduler {
 	}
 
 	/** This is the chance that a packet sent at time X will eventually arrive, given that an ack has not been received. */
-	private double chanceOfPacketArriving(Instant timeSent) {
+	double chanceOfPacketArriving(Instant timeSent) {
 		Duration largerThanRTT = rttEstimate.multipliedBy(2);
 
 		if(timeSent.plus(largerThanRTT).compareTo(now) < 0) {

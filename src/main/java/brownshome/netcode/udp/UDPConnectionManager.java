@@ -163,6 +163,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		listenerThread.interrupt();
 
 		try {
+			LOGGER.info("Shutting down submission thread for '" + address() + "'");
 			submissionThread.shutdown();
 			submissionThread.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 		} catch(InterruptedException e) { /* Stop waiting */ }

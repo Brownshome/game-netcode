@@ -12,6 +12,10 @@ final class AckSender {
 		unsentAcks.set(sequenceNumber);
 	}
 
+	boolean hasUnsentAcks() {
+		return !unsentAcks.isEmpty();
+	}
+
 	static final class OutgoingAck {
 		final int largestAck;
 		final int field;
@@ -25,6 +29,10 @@ final class AckSender {
 	/** Creates an ack field */
 	OutgoingAck createAck() {
 		// TODO use rolling acks, and not BitSet
+
+		if(receivedAcks.isEmpty()) {
+			return new OutgoingAck(0, 0);
+		}
 
 		int oldestAck, newestAck;
 

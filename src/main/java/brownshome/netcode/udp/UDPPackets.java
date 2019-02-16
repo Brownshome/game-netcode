@@ -212,14 +212,25 @@ public class UDPPackets {
 
 		long localSalt = udpConnection.localSalt();
 
-		int digest = hashDataPacket(localSalt, mostRecentAck, acks, sequenceNumber, messages);
+		int digest = hashDataPacket(localSalt, mostRecentAck, acks, sequenceNumber, messages.duplicate());
 
 		if(hash != digest) {
 			//Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
 		} else {
-			udpConnection.receiveSequenceNumber(sequenceNumber);
 			udpConnection.receiveAcks(new Ack(mostRecentAck, acks));
+
+			if(messages.remaining() == 0) {
+				// Ack only packet, don't receive the SEQ
+				// TODO make this a separate packet?
+				return;
+			}
+
+			if(!udpConnection.receiveSequenceNumber(sequenceNumber)) {
+				LOGGER.fine("Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
+				return;
+			}
+
 			udpConnection.receiveBlockOfMessages(sequenceNumber, messages);
 		}
 	}

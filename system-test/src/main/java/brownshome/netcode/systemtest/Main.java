@@ -31,15 +31,15 @@ public class Main {
 
 		List<Schema> protocol = List.of(new BaseSchema(), new UDPSchema(), new TestSchema());
 
-		UDPConnectionManager clientConnectionManager = new UDPConnectionManager(protocol, 25565);
-		UDPConnectionManager serverConnectionManager = new UDPConnectionManager(protocol, 25567);
+		UDPConnectionManager clientConnectionManager = new UDPConnectionManager(protocol);
+		UDPConnectionManager serverConnectionManager = new UDPConnectionManager(protocol);
 
 		ExecutorService executor = Executors.newFixedThreadPool(20);
 		
 		serverConnectionManager.registerExecutor("default", executor, 24);
 		clientConnectionManager.registerExecutor("default", executor, 24);
 		
-		Connection<?> connection = clientConnectionManager.getOrCreateConnection(new InetSocketAddress("localhost", 25566));
+		Connection<?> connection = clientConnectionManager.getOrCreateConnection(serverConnectionManager.address());
 
 		connection.connectSync();
 

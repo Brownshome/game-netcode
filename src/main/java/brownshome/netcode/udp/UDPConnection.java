@@ -358,7 +358,15 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		messageScheduler.ackReceived(ack);
 	}
 
-	void receiveSequenceNumber(int sequenceNumber) {
+	// TODO clear old acks for wrap-around.
+	private final Set<Integer> receivedAcks = new HashSet<>();
+
+	/**
+	 * Returns true if the sequence number should be accepted, or false if rejected.
+	 **/
+	boolean receiveSequenceNumber(int sequenceNumber) {
 		messageScheduler.receiveSequenceNumber(sequenceNumber);
+
+		return receivedAcks.add(sequenceNumber);
 	}
 }
