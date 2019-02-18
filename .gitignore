@@ -201,3 +201,5 @@ gradle-app.setting
 *.iml
 
 netcode\.ipr
+
+\.idea/
