@@ -67,4 +67,6 @@ javaModule.hacks {
 	//Used for testing purposes
 	exports('brownshome.netcode', 'brownshome.netcode.ordering', 'org.junit.platform.commons')
 	opens('brownshome.netcode', 'brownshome.netcode.ordering', 'org.junit.platform.commons')
+	exports('brownshome.netcode', 'brownshome.netcode.udp', 'org.junit.platform.commons')
+	opens('brownshome.netcode', 'brownshome.netcode.udp', 'org.junit.platform.commons')
 }
