@@ -31,3 +31,4 @@ This method will be called by the networking engine when the packet is received.
 - [ ] Safe multi-threading
 - [ ] Intelligent packet ordering
 - [ ] Class / structure diagrams
+- [ ] Duplicate packet removal / detection

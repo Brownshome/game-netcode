@@ -20,3 +20,5 @@ Once this part of the negotiation is complete then the protocol negotiation proc
 The sending system keeps a queue of packets that are currently being sent. The system accumulates bandwidth at the estimated congestion speed. When there is enough bandwidth then the next packet of messages is sent. If the packet is reliable then it is resent multiple times until the ack for that packet arrives back.
 
 When large amounts of data need to be sent they are fragmented into fragment packets.
+
+## Duplicate Detection & Acks
