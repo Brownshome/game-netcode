@@ -6,7 +6,6 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Logger;
 
 /** Represents a packet that has been dispatched to the UDP scheduler */
 final class ScheduledPacket implements Comparable<ScheduledPacket> {

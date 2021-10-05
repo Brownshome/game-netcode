@@ -5,20 +5,19 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.DatagramChannel;
+import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import brownshome.netcode.ConnectionManager;
 import brownshome.netcode.Schema;
 
 /** Represents a UDP connection that is bound to a single port on the machine. */
 public class UDPConnectionManager implements ConnectionManager<InetSocketAddress, UDPConnection> {
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	private static final System.Logger LOGGER = System.getLogger(UDPConnectionManager.class.getModule().getName());
 	private static final ThreadGroup UDP_SEND_THREAD_GROUP = new ThreadGroup("UDP-Send");
 
 	public static final int BUFFER_SIZE = 16 * 1024 * 1024;
@@ -93,10 +92,10 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 					remoteAddress = (InetSocketAddress) channel.receive(buffer);
 				} catch (ClosedByInterruptException cbie) {
 					//Exit
-					LOGGER.info(String.format("Port %d UDP listener shutting down", address.getPort()));
+					LOGGER.log(System.Logger.Level.INFO, "Port {0} UDP listener shutting down", address.getPort());
 					return;
 				} catch (IOException e) {
-					LOGGER.log(Level.SEVERE, "Error waiting on socket", e);
+					LOGGER.log(System.Logger.Level.ERROR, "Error waiting on socket", e);
 					return;
 				}
 
@@ -152,9 +151,9 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 				//Exit from the close operation.
 				break;
 			} catch (ExecutionException e) {
-				LOGGER.log(Level.WARNING,
+				LOGGER.log(System.Logger.Level.WARNING,
 						String.format("Connection '%s' failed to terminate cleanly", connection.address()),
-						e.getCause());
+						e);
 				//Keep trying to exit.
 			}
 		}
@@ -162,7 +161,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		listenerThread.interrupt();
 
 		try {
-			LOGGER.info("Shutting down submission thread for '" + address() + "'");
+			LOGGER.log(System.Logger.Level.INFO, "Shutting down submission thread for ''{0}''", address());
 			submissionThread.shutdown();
 			submissionThread.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 		} catch (InterruptedException e) { /* Stop waiting */ }

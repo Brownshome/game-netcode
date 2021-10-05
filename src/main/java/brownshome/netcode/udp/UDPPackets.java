@@ -1,7 +1,6 @@
 package brownshome.netcode.udp;
 
 import java.nio.ByteBuffer;
-import java.util.logging.Logger;
 import java.util.zip.CRC32;
 
 import brownshome.netcode.Connection;
@@ -14,7 +13,7 @@ import brownshome.netcode.annotation.converter.UseConverter;
  * This class contains packets that are sent directly over the UDP connection. They should not be sent by clients
  */
 final class UDPPackets {
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	private static final System.Logger LOGGER = System.getLogger(UDPPackets.class.getModule().getName());
 
 	private UDPPackets() { }
 
@@ -86,7 +85,7 @@ final class UDPPackets {
 
 		if (hash != digest) {
 			// Ignore the packet, this is corrupt, or malicious
-			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
+			LOGGER.log(System.Logger.Level.INFO, "Corrupt packet received from '" + connection.address() + "'");
 		} else {
 			udpConnection.connectionDenied();
 		}
@@ -112,7 +111,7 @@ final class UDPPackets {
 
 		if (hash != digest) {
 			// Ignore the packet, this is corrupt, or malicious
-			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
+			LOGGER.log(System.Logger.Level.INFO, "Corrupt packet received from '" + connection.address() + "'");
 		} else {
 			udpConnection.receiveChallengeSalt(serverSalt);
 		}
@@ -190,7 +189,7 @@ final class UDPPackets {
 
 		if (hash != digest) {
 			// Ignore the packet, this is corrupt, or malicious
-			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
+			LOGGER.log(System.Logger.Level.INFO, "Corrupt packet received from '" + connection.address() + "'");
 		} else {
 			udpConnection.receiveAcks(new Ack(mostRecentAck, acks));
 
@@ -201,7 +200,7 @@ final class UDPPackets {
 			}
 
 			if (!udpConnection.receiveSequenceNumber(sequenceNumber)) {
-				LOGGER.fine("Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
+				LOGGER.log(System.Logger.Level.DEBUG, "Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
 				return;
 			}
 
@@ -235,12 +234,12 @@ final class UDPPackets {
 
 		if (hash != digest) {
 			//Ignore the packet, this is corrupt, or malicious
-			LOGGER.info("Corrupt fragment received from '" + connection.address() + "'");
+			LOGGER.log(System.Logger.Level.INFO, "Corrupt fragment received from '" + connection.address() + "'");
 		} else {
 			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
 
 			if (!udpConnection.receiveSequenceNumber(sequenceNumber)) {
-				LOGGER.fine("Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
+				LOGGER.log(System.Logger.Level.DEBUG, "Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
 				return;
 			}
 

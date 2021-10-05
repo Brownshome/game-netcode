@@ -4,13 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Logger;
 
 import brownshome.netcode.util.ConnectionFlusher;
 
 public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> {
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
-
 	public enum State {
 		/** The connection is not yet connected. Packets will be sent when the connection is ready. */
 		NO_CONNECTION,

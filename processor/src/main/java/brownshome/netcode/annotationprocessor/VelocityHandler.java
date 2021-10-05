@@ -15,6 +15,7 @@ public final class VelocityHandler {
 	private final VelocityEngine engine;
 	
 	private VelocityHandler() {
+		Thread.currentThread().setContextClassLoader(VelocityHandler.class.getClassLoader());
 		engine = new VelocityEngine();
 
 		try {
@@ -26,10 +27,10 @@ public final class VelocityHandler {
 		}
 	}
 	
-	public final Template readTemplateFile(String name) {
+	public Template readTemplateFile(String name) {
 		try {
 			return engine.getTemplate(String.format("/velocity/%s.vm", name), "UTF-8");
-		} catch(ParseErrorException | ResourceNotFoundException e) {
+		} catch (ParseErrorException | ResourceNotFoundException e) {
 			throw new IllegalArgumentException("Unable to load the template file", e);
 		}
 	}

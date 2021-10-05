@@ -8,8 +8,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import brownshome.netcode.Packet;
 
@@ -31,7 +29,7 @@ import brownshome.netcode.Packet;
  * introduced to ensure that bandwidth is not wasted on connection overheads.
  **/
 final class MessageScheduler {
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	private static final System.Logger LOGGER = System.getLogger(MessageScheduler.class.getModule().getName());
 
 	/*
 
@@ -122,7 +120,7 @@ final class MessageScheduler {
 
 	/** This method is called every X time units to trigger the packet sending code. */
 	private synchronized void queuePackets() {
-		LOGGER.finest("Queueing packets to '" + connection.address() + "'");
+		LOGGER.log(System.Logger.Level.TRACE, "Queueing packets to '" + connection.address() + "'");
 
 		now = Instant.now();
 
@@ -213,7 +211,7 @@ final class MessageScheduler {
 	}
 
 	private void sendConstructedDataPacket(ConstructedDataPacket toSend) {
-		LOGGER.fine(String.format("Sending '%s' to '%s'", toSend, connection.address()));
+		LOGGER.log(System.Logger.Level.DEBUG, String.format("Sending '%s' to '%s'", toSend, connection.address()));
 
 		bytesToSend -= toSend.dataBuffer.remaining();
 
@@ -238,7 +236,7 @@ final class MessageScheduler {
 		try {
 			connection.connectionManager().channel().send(aggregateBuffer, connection.address());
 		} catch(IOException e) {
-			LOGGER.log(Level.SEVERE, "Unable to send", e);
+			LOGGER.log(System.Logger.Level.ERROR, "Unable to send", e);
 			// TODO close connection
 			throw new RuntimeException(e);
 		}
@@ -246,7 +244,7 @@ final class MessageScheduler {
 
 	/** This is called when an ack is received for a particular group of messages. */
 	synchronized void ackReceived(Ack ack) {
-		LOGGER.fine("Remote address '" + connection.address() + "' sent acks for '" + Arrays.toString(ack.ackedPackets) + "'");
+		LOGGER.log(System.Logger.Level.DEBUG, "Remote address '" + connection.address() + "' sent acks for '" + Arrays.toString(ack.ackedPackets) + "'");
 
 		// TODO estimate packet loss
 		// TODO estimate rtt
@@ -267,7 +265,7 @@ final class MessageScheduler {
 	}
 
 	synchronized void receiveSequenceNumber(int sequenceNumber) {
-		LOGGER.fine("Remote address '" + connection.address() + "' sent sequence number '" + sequenceNumber + "'");
+		LOGGER.log(System.Logger.Level.DEBUG, "Remote address '" + connection.address() + "' sent sequence number '" + sequenceNumber + "'");
 
 		ackSender.receivedPacket(sequenceNumber);
 	}
@@ -280,7 +278,7 @@ final class MessageScheduler {
 
 	/** Schedules a packet into the messaging queue. The packet order is defined by the order in which this method is called. */
 	synchronized CompletableFuture<Void> schedulePacket(Packet packet) {
-		LOGGER.fine("Scheduled '" + packet + "' for sending to '" + connection.address() + "'");
+		LOGGER.log(System.Logger.Level.DEBUG, "Scheduled '" + packet + "' for sending to '" + connection.address() + "'");
 
 		var future = new CompletableFuture<Void>();
 

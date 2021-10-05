@@ -3,7 +3,6 @@ package brownshome.netcode.util;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Logger;
 
 /**
  * This class keeps track of what packets have been sent and keeps track of what packets have not yet been sent.
@@ -13,8 +12,6 @@ import java.util.logging.Logger;
  * This class may have any of its methods called from any thread.
  **/
 public final class ConnectionFlusher {
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
-
 	private static final class QueueItem {
 		final boolean isFlushQuery;
 		final CompletableFuture<Void> future;

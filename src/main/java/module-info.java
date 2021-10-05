@@ -5,6 +5,4 @@ module brownshome.netcode {
 
 	requires transitive brownshome.netcode.annotation;
 	requires transitive java.compiler;
-	
-	requires java.logging;
 }

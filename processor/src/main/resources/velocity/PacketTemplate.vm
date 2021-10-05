@@ -75,7 +75,7 @@ public final class ${packet.name()}Packet extends Packet {
 		try {
 			${packet.executionExpression()};
 		} catch (Throwable t) {
-			LOGGER.log(System.Logger.Level.ERROR, "Error processing %s", this, t);
+			LOGGER.log(System.Logger.Level.ERROR, "Error processing " + this, t);
 			throw new NetworkException(t, connection);
 		}
 	}

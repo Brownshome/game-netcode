@@ -35,6 +35,8 @@ allprojects {
 	}
 
 	extraJavaModuleInfo {
+		failOnMissingModuleInfo = false
+
 		automaticModule('velocity-engine-core-2.3.jar', 'org.apache.velocity.core')
 	}
 

@@ -8,8 +8,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import brownshome.netcode.ConnectionManager;
 import brownshome.netcode.Schema;
@@ -23,7 +21,7 @@ import brownshome.netcode.Schema;
  * Connect always returns instantly.
  */
 public class MemoryConnectionManager implements ConnectionManager<MemoryConnectionManager, MemoryConnection> {
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	private static final System.Logger LOGGER = System.getLogger(MemoryConnectionManager.class.getModule().getName());
 
 	private final List<Schema> schema;
 
@@ -93,7 +91,7 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 				//Exit from the close operation.
 				return;
 			} catch (ExecutionException e) {
-				LOGGER.log(Level.WARNING,
+				LOGGER.log(System.Logger.Level.ERROR,
 						String.format("Connection '%s' failed to terminate cleanly", connection.address()),
 						e.getCause());
 				//Keep trying to exit.

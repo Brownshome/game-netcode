@@ -14,7 +14,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.logging.Logger;
 
 public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	/*
@@ -29,7 +28,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	/** The RNG used to produce salts, this may not be thread-safe, so it is protected by a synchronized block on itself */
 	private static final SecureRandom SALT_PROVIDER = new SecureRandom();
 
-	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode.udp");
+	private static final System.Logger LOGGER = System.getLogger(UDPConnection.class.getModule().getName());
 	private static final long CONNECT_RESEND_DELAY_MS = 100;
 	private static final int FRAGMENT_SIZE = 1024;
 
@@ -169,7 +168,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private void drop(Packet packet) {
 		String dropMsg = "Packet '%s' was dropped due to ordering constraints".formatted(packet);
 
-		LOGGER.warning(dropMsg);
+		LOGGER.log(System.Logger.Level.WARNING, dropMsg);
 
 		if (packet.reliable()) {
 			send(new ErrorPacket(dropMsg));
@@ -259,7 +258,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	void receive(ByteBuffer buffer) {
 		Packet incoming = protocol().createPacket(buffer);
 
-		LOGGER.info(() -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
+		LOGGER.log(System.Logger.Level.INFO, () -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
 
 		manager.executeOn(() -> {
 			protocol().handle(this, incoming);
@@ -288,7 +287,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	}
 
 	private void flagPacketSend(Packet packet) {
-		LOGGER.fine("Sending '" + packet + "' to '" + address() + "'");
+		LOGGER.log(System.Logger.Level.DEBUG, "Sending ''{0}'' to ''{1}''", packet, address());
 	}
 
 	long localSalt() {
@@ -311,7 +310,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private void receiveMessage(int packetNumber, int messageNumber, ByteBuffer data) {
 		Packet incoming = protocol().createPacket(data);
 
-		LOGGER.info(() -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
+		LOGGER.log(System.Logger.Level.INFO, () -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
 
 		// Dispatch the packet to the execution queue.
 		// TODO threadsafe
