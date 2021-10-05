@@ -2,10 +2,15 @@ apply plugin: 'org.openjfx.javafxplugin'
 apply plugin: 'application'
 
 javafx {
+	version = "15.0.1"
 	modules = [ 'javafx.controls', 'javafx.fxml' ]
 }
 
 application {
-	mainModule
+	mainModule = 'brownshome.lagatron '
 	mainClass = 'brownshome.lagatron.Lagatron'
+}
+
+run {
+	enableAssertions true
 }

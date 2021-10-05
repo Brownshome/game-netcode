@@ -52,10 +52,9 @@ public final class Packet {
 	private final boolean isReliable;
 	private final String[] orderedBy;
 	private final String handledBy;
-	private final Schema schema;
 	private final int minimumVersion;
 	private final String executionExpression;
-	private final int id;
+	private final PackageElement packageElement;
 
 	private final List<PacketParameter> parameters;
 
@@ -63,15 +62,15 @@ public final class Packet {
 	private final int versionIndex, connectionIndex;
 
 	public Packet(ExecutableElement element, ProcessingEnvironment env) throws PacketCompileException {
-		//Extract all of the present annotations
-		
+		packageElement = env.getElementUtils().getPackageOf(element);
 
+		//Extract all of the present annotations
 		DefinePacket definePacket = element.getAnnotation(DefinePacket.class);
 		minimumVersion = definePacket.minimumVersion();
 		name = definePacket.name();
 
 		MakeOrdered ordering = element.getAnnotation(MakeOrdered.class);
-		if(ordering == null) {
+		if (ordering == null) {
 			orderedBy = new String[0];
 		} else {
 			orderedBy = ordering.value();
@@ -96,25 +95,25 @@ public final class Packet {
 		this.parameters = new ArrayList<>();
 
 		int con = -1, version = -1;
-		for(int i = 0; i < parameters.size(); i++) {
+		for (int i = 0; i < parameters.size(); i++) {
 			VariableElement parameter = parameters.get(i);
 
-			if(parameter.getAnnotation(ConnectionParam.class) != null) {
-				if(!types.isSameType(parameter.asType(), connectionType)) {
+			if (parameter.getAnnotation(ConnectionParam.class) != null) {
+				if (!types.isSameType(parameter.asType(), connectionType)) {
 					throw new PacketCompileException("Wrong type for the @ConnectionParam annotation", parameter);
 				}
 
-				if(con != -1) {
+				if (con != -1) {
 					throw new PacketCompileException("Two connection parameters cannot be defined", parameter);
 				}
 
 				con = i;
-			} else if(parameter.getAnnotation(VersionParam.class) != null) {
-				if(!types.isSameType(parameter.asType(), versionType)) {
+			} else if (parameter.getAnnotation(VersionParam.class) != null) {
+				if (!types.isSameType(parameter.asType(), versionType)) {
 					throw new PacketCompileException("Wrong type for the @VersionParam annotation", parameter);
 				}
 
-				if(version != -1) {
+				if (version != -1) {
 					throw new PacketCompileException("Two version parameters cannot be defined", parameter);
 				}
 
@@ -130,7 +129,7 @@ public final class Packet {
 					} else {
 						throw new IllegalStateException("MirroredTypeException should have been thrown.");
 					}
-				} catch(MirroredTypeException mte) {
+				} catch (MirroredTypeException mte) {
 					childConverterType = mte.getTypeMirror();
 				}
 
@@ -147,26 +146,6 @@ public final class Packet {
 
 		versionIndex = version;
 		connectionIndex = con;
-
-		//Find schema
-		PackageElement packageElement = elements.getPackageOf(element);
-		Schema tmp = Schema.getSchema(packageElement);
-
-		while(tmp == null) {
-			Element e = packageElement.getEnclosingElement();
-
-			if(!(e instanceof PackageElement)) {
-				throw new PacketCompileException("No schema definition found", element);
-			}
-
-			packageElement = (PackageElement) e;
-
-			tmp = Schema.getSchema(packageElement);
-		}
-
-		schema = tmp;
-		
-		id = schema.allocateId();
 		
 		executionExpression = generateExecutionExpression(element, this.parameters, versionIndex, connectionIndex);
 	}
@@ -283,9 +262,11 @@ public final class Packet {
 		}
 	}
 
-	public void writePacket(Writer writer) {
+	public void writePacket(Writer writer, Schema schema) {
 		VelocityContext context = new VelocityContext();
 		context.put("packet", this);
+		context.put("schema", schema);
+		context.put("id", schema.allocateId());
 
 		TEMPLATE.merge(context, writer);
 	}
@@ -310,23 +291,15 @@ public final class Packet {
 		return handledBy;
 	}
 	
-	public int id() {
-		return id;
-	}
-	
 	public List<PacketParameter> parameters() {
 		return parameters;
 	}
 
-	public Schema schema() {
-		return schema;
-	}
-
-	public String packageName() {
-		return schema().packageName();
-	}
-
 	public String executionExpression() {
 		return executionExpression;
+	}
+
+	public PackageElement packageElement() {
+		return packageElement;
 	}
 }

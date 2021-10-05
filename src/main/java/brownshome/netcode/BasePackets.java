@@ -1,12 +1,10 @@
 package brownshome.netcode;
 
-import brownshome.netcode.annotation.ConnectionParam;
-import brownshome.netcode.annotation.DefinePacket;
-import brownshome.netcode.annotation.MakeReliable;
-import brownshome.netcode.annotation.converter.UseConverter;
-
 import java.util.List;
 import java.util.logging.Logger;
+
+import brownshome.netcode.annotation.*;
+import brownshome.netcode.annotation.converter.UseConverter;
 
 /** This class contains all the packets used by the base protocol. */
 final class BasePackets {

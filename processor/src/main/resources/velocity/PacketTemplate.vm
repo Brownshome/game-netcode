@@ -1,11 +1,8 @@
-#set ( $schema = $packet.schema() )
-package ${packet.packageName()};
+package ${schema.packageName()};
 
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Arrays;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import brownshome.netcode.Connection;
 import brownshome.netcode.NetworkException;
@@ -14,7 +11,7 @@ import brownshome.netcode.Packet;
 import brownshome.netcode.NetworkObjectSize;
 
 public final class ${packet.name()}Packet extends Packet {
-	Logger LOGGER = Logger.getLogger("brownshome.netcode");
+	System.Logger LOGGER = System.getLogger(${packet.name()}Packet.class.getModule().getName());
 
 #foreach ( $parameter in $packet.parameters() )
 #set( $converter = $parameter.converter() )
@@ -27,7 +24,7 @@ public final class ${packet.name()}Packet extends Packet {
 	private final NetworkObjectSize size;
 	
 	public ${packet.name()}Packet(#foreach( $parameter in $packet.parameters() )$parameter.type() ${parameter.dataName()}#if( ! $foreach.last ), #{end}#{end}) {
-		super(${schema.shortName()}Schema.FULL_NAME, "${packet.handledBy()}", ${packet.id()}, 
+		super(${schema.shortName()}Schema.FULL_NAME, "${packet.handledBy()}", $id,
 				new int[] { #foreach( $id in $packet.calculatedOrderingIDs($schema) )${id}#if( ! $foreach.last ), #{end}#{end} });
 
 #foreach ( $parameter in $packet.parameters() )
@@ -77,8 +74,8 @@ public final class ${packet.name()}Packet extends Packet {
 	public void handle(Connection<?> connection, int minorVersion) throws NetworkException {
 		try {
 			${packet.executionExpression()};
-		} catch(Throwable t) {
-			LOGGER.log(Level.SEVERE, "Error processing ${packet.name()}", t);
+		} catch (Throwable t) {
+			LOGGER.log(System.Logger.Level.ERROR, "Error processing %s", this, t);
 			throw new NetworkException(t, connection);
 		}
 	}

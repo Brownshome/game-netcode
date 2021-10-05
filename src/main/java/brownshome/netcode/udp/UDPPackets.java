@@ -1,14 +1,14 @@
 package brownshome.netcode.udp;
 
+import java.nio.ByteBuffer;
+import java.util.logging.Logger;
+import java.util.zip.CRC32;
+
 import brownshome.netcode.Connection;
 import brownshome.netcode.annotation.ConnectionParam;
 import brownshome.netcode.annotation.DefinePacket;
 import brownshome.netcode.annotation.converter.Converter;
 import brownshome.netcode.annotation.converter.UseConverter;
-
-import java.nio.ByteBuffer;
-import java.util.logging.Logger;
-import java.util.zip.CRC32;
 
 /**
  * This class contains packets that are sent directly over the UDP connection. They should not be sent by clients

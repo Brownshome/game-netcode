@@ -1,17 +1,14 @@
 package brownshome.netcode.annotationprocessor;
 
+import java.io.IOException;
 import java.io.Writer;
-import java.util.Set;
+import java.util.*;
 
 import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.*;
 import javax.tools.Diagnostic.Kind;
 
 import brownshome.netcode.annotation.DefinePacket;
@@ -22,62 +19,97 @@ import brownshome.netcode.annotation.DefineSchema;
  * @author James Brown
  */
 public class NetworkSchemaGenerator extends AbstractProcessor {
-	private Filer filer;
-	private static boolean firstPass = true;
-	
+	private final Map<PackageElement, Schema> packageMapping = new HashMap<>();
+	private final List<Packet> packets = new ArrayList<>();
+
 	@Override
 	public synchronized void init(ProcessingEnvironment processingEnv) {
 		processingEnv.getMessager().printMessage(Kind.NOTE, "Started network schema generation.");
 		
 		super.init(processingEnv);
-		
-		filer = processingEnv.getFiler();
-		
-		processingEnv.getElementUtils().getTypeElement("");
 	}
 	
 	@Override
 	public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-		try {
-			if(!firstPass)
-				return true;
-			
-			firstPass = false;
-			
-			for(Element element : roundEnv.getElementsAnnotatedWith(DefineSchema.class)) {
-				Schema schema = new Schema((PackageElement) element);
-				
-				Schema.addSchema(schema);
-			}
-			
-			//Create the packet description.
-			for(Element element : roundEnv.getElementsAnnotatedWith(DefinePacket.class)) {
-				Packet packet = new Packet((ExecutableElement) element, processingEnv);
-				packet.schema().addPacket(packet);
-				
-				try(Writer writer = filer.createSourceFile(packet.packageName() + "." + packet.name() + "Packet").openWriter()) {
-					packet.writePacket(writer);
+		var filer = processingEnv.getFiler();
+		var elements = processingEnv.getElementUtils();
+		var messager = processingEnv.getMessager();
+
+		TypeElement defineSchema = elements.getTypeElement(DefineSchema.class.getName());
+		TypeElement definePacket = elements.getTypeElement(DefinePacket.class.getName());
+
+		if (annotations.contains(defineSchema)) {
+			for (Element element : roundEnv.getElementsAnnotatedWith(defineSchema)) {
+				if (!(element instanceof PackageElement packageElement)) {
+					messager.printMessage(Kind.ERROR, "DefineSchema can only be applied to packages");
+					continue;
+				}
+
+				var schema = new Schema(packageElement);
+				packageMapping.put(packageElement, schema);
+
+				for (var iterator = packets.listIterator(); iterator.hasNext(); ) {
+					Packet p = iterator.next();
+					if (schema.packageElement().equals(p.packageElement())) {
+						writePacket(p, schema);
+						iterator.remove();
+					}
 				}
 			}
-			
-			for(Schema schema : Schema.allSchema()) {
-				try(Writer writer = filer.createSourceFile(schema.longName() + "Schema").openWriter()) {
+		}
+
+		if (annotations.contains(definePacket)) {
+			for (Element element : roundEnv.getElementsAnnotatedWith(definePacket)) {
+				if (!(element instanceof ExecutableElement method)) {
+					messager.printMessage(Kind.ERROR, "DefinePacket can only be applied to methods");
+					continue;
+				}
+
+				Packet packet;
+				try {
+					packet = new Packet(method, processingEnv);
+				} catch (PacketCompileException pce) {
+					pce.raiseError(processingEnv);
+					continue;
+				}
+
+				var schema = packageMapping.get(packet.packageElement());
+				if (schema != null) {
+					writePacket(packet, schema);
+				} else {
+					packets.add(packet);
+				}
+			}
+		}
+
+		if (packets.isEmpty()) {
+			for (var iterator = packageMapping.values().iterator(); iterator.hasNext(); ) {
+				Schema schema = iterator.next();
+				iterator.remove();
+
+				try (Writer writer = filer.createSourceFile(schema.longName() + "Schema").openWriter()) {
 					schema.writeSchema(writer);
+				} catch (IOException ioex) {
+					messager.printMessage(Kind.ERROR, "Unable to write out schema file: %s".formatted(ioex));
 				}
 			}
-			
-			return false;
-		} catch(PacketCompileException pce) {
-			pce.raiseError(processingEnv);
-			return false;
-		} catch(Exception e) {
-			throw new IllegalStateException("Unknown error", e);
+		}
+
+		return true;
+	}
+
+	private void writePacket(Packet packet, Schema schema) {
+		schema.addPacket(packet);
+		try (Writer writer = processingEnv.getFiler().createSourceFile(schema.packageName() + "." + packet.name() + "Packet").openWriter()) {
+			packet.writePacket(writer, schema);
+		} catch (IOException e) {
+			processingEnv.getMessager().printMessage(Kind.ERROR, "Unable to write out packet file: %s".formatted(e));
 		}
 	}
 
 	@Override
 	public Set<String> getSupportedAnnotationTypes() {
-		return Set.of("*");
+		return Set.of(DefineSchema.class.getName(), DefinePacket.class.getName());
 	}
 
 	@Override

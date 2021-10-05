@@ -220,7 +220,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	}
 
 	@Override
-	public CompletableFuture<Void> sendWithoutStateChecks(Packet packet) {
+	protected CompletableFuture<Void> sendWithoutStateChecks(Packet packet) {
 		//Place the buffer into the message queue
 		return messageScheduler.schedulePacket(packet);
 	}

@@ -1,13 +1,17 @@
 plugins {
-	id 'org.openjfx.javafxplugin' version '0.0.9' apply false
-	id 'de.jjohannes.extra-java-module-info' version '0.9' apply false
-}
+	id 'org.openjfx.javafxplugin' version '0.0.10' apply false
+	id 'de.jjohannes.extra-java-module-info' version '0.9'
 
-apply plugin: 'java-library'
+	id 'java-library'
+	id 'maven-publish'
+}
 
 allprojects {
 	apply plugin: 'java'
 	apply plugin: 'de.jjohannes.extra-java-module-info'
+
+	group = 'brownshome'
+	version = '0.1.0-SNAPSHOT'
 
 	repositories {
 		mavenCentral()
@@ -25,13 +29,64 @@ allprojects {
 		useJUnitPlatform()
 	}
 
+	java {
+		withJavadocJar()
+		withSourcesJar()
+	}
+
 	extraJavaModuleInfo {
 		automaticModule('velocity-engine-core-2.3.jar', 'org.apache.velocity.core')
 	}
 
+	javadoc {
+		options.encoding 'utf-8'
+	}
+
+	tasks.withType(JavaCompile) {
+		options.encoding = 'utf-8'
+	}
+
 	dependencies {
-		testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.2.0'
-		testRuntimeOnly group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.2.0'
+		testImplementation 'org.junit.jupiter:junit-jupiter-api:[5.0.0,6.0.0)'
+		testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:[5.0.0,6.0.0)'
+	}
+}
+
+publishing {
+	repositories {
+		maven {
+			name = 'GitHubPackages'
+			url = uri('https://maven.pkg.github.com/Brownshome/game-netcode')
+			credentials {
+				println project.getProperties()
+				username = project.properties['gpr.usr']
+				password = project.properties['gpr.key']
+			}
+		}
+	}
+
+	publications {
+		mavenJava(MavenPublication) {
+			artifactId = 'netcode'
+			from components.java
+
+			pom {
+				name = 'Netcode'
+				description = 'A mixed-reliability packet communication system'
+				url = 'https://github.com/Brownshome/game-netcode'
+				developers {
+					developer {
+						id = 'Brownshome'
+						name = 'James Brown'
+						email = 'jamesphone180@gmail.com'
+					}
+				}
+				scm {
+					connection = 'scm:git:git://github.com/Brownshome/game-netcode.git'
+					url = 'https://github.com/Brownshome/game-netcode'
+				}
+			}
+		}
 	}
 }
 

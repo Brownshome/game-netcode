@@ -17,25 +17,18 @@ import brownshome.netcode.annotation.DefineSchema;
 /** Holds the information needed to create a schema java file. */
 public class Schema {
 	private static final Template TEMPLATE = VelocityHandler.instance().readTemplateFile("SchemaTemplate");
-	private static final Map<String, Schema> PACKAGE_MAPPING = new HashMap<>();
-	
-	public static void addSchema(Schema schema) {
-		PACKAGE_MAPPING.put(schema.packageName, schema);
-	}
-	
-	public static Schema getSchema(PackageElement packageElement) {
-		return PACKAGE_MAPPING.get(packageElement.getQualifiedName().toString());
-	}
 	
 	private final int minorVersion, majorVersion;
 	private final String packageName, shortName;
 	private final List<Packet> packetDefinitions;
-	
+	private final PackageElement element;
+
 	private int freeId = 0;
 	
 	public Schema(PackageElement element) {
 		DefineSchema schema = element.getAnnotation(DefineSchema.class);
-		
+
+		this.element = element;
 		shortName = schema.name();
 		minorVersion = schema.minor();
 		majorVersion = schema.major();
@@ -90,12 +83,12 @@ public class Schema {
 		return packetDefinitions;
 	}
 
-	public static Collection<Schema> allSchema() {
-		return PACKAGE_MAPPING.values();
-	}
-
 	/** Allocates the next free id in this packet schema for the supplied packet. */
 	public int allocateId() {
 		return freeId++;
+	}
+
+	public PackageElement packageElement() {
+		return element;
 	}
 }

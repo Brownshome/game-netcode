@@ -1,5 +1,6 @@
 plugins {
 	id 'java-library'
+	id 'maven-publish'
 }
 
 dependencies {
@@ -12,4 +13,42 @@ dependencies {
 task copyToLib(type: Copy) {
 	into "$buildDir/libs"
 	from configurations.runtimeClasspath
+}
+
+publishing {
+	repositories {
+		maven {
+			name = 'GitHubPackages'
+			url = uri('https://maven.pkg.github.com/Brownshome/game-netcode')
+			credentials {
+				println project.getProperties()
+				username = project.properties['gpr.usr']
+				password = project.properties['gpr.key']
+			}
+		}
+	}
+
+	publications {
+		mavenJava(MavenPublication) {
+			artifactId = 'netcode-processor'
+			from components.java
+
+			pom {
+				name = 'Netcode Processor'
+				description = 'An annotation processor for generating packet classes'
+				url = 'https://github.com/Brownshome/game-netcode'
+				developers {
+					developer {
+						id = 'Brownshome'
+						name = 'James Brown'
+						email = 'jamesphone180@gmail.com'
+					}
+				}
+				scm {
+					connection = 'scm:git:git://github.com/Brownshome/game-netcode.git'
+					url = 'https://github.com/Brownshome/game-netcode'
+				}
+			}
+		}
+	}
 }
