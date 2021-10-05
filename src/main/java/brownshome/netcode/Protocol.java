@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 
 import brownshome.netcode.annotation.converter.Converter;
 import brownshome.netcode.annotation.converter.Networkable;
-import brownshome.netcode.sizing.NetworkObjectSize;
 
 /** 
  * This class represents a collection of Schema that can be used to handle incoming packets.
@@ -20,40 +19,24 @@ public final class Protocol implements Networkable {
 		return BASE_PROTOCOL;
 	}
 
-	private static class SchemaAllocation {
-		final int startID;
-		final Schema schema;
-		
-		SchemaAllocation(int startID, Schema schema) {
-			this.startID = startID;
-			this.schema = schema;
-		}
-	}
+	private record SchemaAllocation(int startID, Schema schema) { }
 
-	public static final class ProtocolNegotiation {
-		public final Protocol protocol;
-		public final Set<Schema> missingSchema;
-
-		private ProtocolNegotiation(Protocol protocol, Set<Schema> missingSchema) {
-			this.protocol = protocol;
-			this.missingSchema = missingSchema;
-		}
-	}
+	public record ProtocolNegotiation(Protocol protocol, Set<Schema> missingSchema) { }
 
 	public static ProtocolNegotiation negotiateProtocol(List<Schema> requestedList, List<Schema> supportedList) {
 		Map<String, Schema> supportedSchemas = new HashMap<>();
 
-		for(Schema s : supportedList) {
+		for (Schema s : supportedList) {
 			supportedSchemas.put(s.fullName(), s);
 		}
 
 		List<Schema> chosenSchema = new ArrayList<>();
 		Set<Schema> missingSchema = new HashSet<>();
 		
-		for(Schema s : requestedList) {
+		for (Schema s : requestedList) {
 			Schema supported = supportedSchemas.get(s.fullName());
 
-			if(supported == null || supported.majorVersion() != s.majorVersion()) {
+			if (supported == null || supported.majorVersion() != s.majorVersion()) {
 				missingSchema.add(s);
 			} else {
 				int minorVersion = Math.min(s.minorVersion(), supported.minorVersion());
@@ -64,9 +47,7 @@ public final class Protocol implements Networkable {
 
 		Protocol protocol = new Protocol(chosenSchema);
 
-		ProtocolNegotiation result = new ProtocolNegotiation(protocol, missingSchema);
-
-		return result;
+		return new ProtocolNegotiation(protocol, missingSchema);
 	}
 
 	/** This is ordered by the input order of the schema. */
@@ -82,7 +63,7 @@ public final class Protocol implements Networkable {
 		
 		int startID = 0;
 		
-		for(Schema s : schema) {
+		for (Schema s : schema) {
 			SchemaAllocation allocation = new SchemaAllocation(startID, s);
 			
 			int numberOfSlots = s.numberOfIDsRequired();
@@ -90,7 +71,7 @@ public final class Protocol implements Networkable {
 			assert !nameToSchemaMapping.containsKey(s.fullName()) : "Schema " + s.fullName() + " is included twice in the mapping.";
 			
 			nameToSchemaMapping.put(s.fullName(), allocation);
-			for(int i = 0; i < numberOfSlots; i++) {
+			for (int i = 0; i < numberOfSlots; i++) {
 				IDToSchemaMapping.put(startID + i, allocation);
 			}
 			
@@ -123,14 +104,19 @@ public final class Protocol implements Networkable {
 		
 		try {
 			schemaLocalID = id - allocation.startID;
-		} catch(NullPointerException npe) {
+		} catch (NullPointerException npe) {
 			throw new IllegalArgumentException(String.format("Invalid packet ID: %d", id), npe);
 		}
 		
 		return allocation.schema.createPacket(schemaLocalID, buffer);
 	}
-	
-	/** Executes a given packet */
+
+	/**
+	 * Executes a given packet
+	 * @param connection the connection the packet came from
+	 * @param packet the packet to execute
+	 * @throws NetworkException if there is an error executing the packet
+	 */
 	public void handle(Connection<?> connection, Packet packet) throws NetworkException {
 		Schema schema = nameToSchemaMapping.get(packet.schemaName()).schema;
 		
@@ -145,7 +131,9 @@ public final class Protocol implements Networkable {
 
 	/* ****************** NETWORKABLE ****************** */
 	
-	/** This constructor creates a protocol from an incoming packet of data. */
+	/**
+	 * This constructor creates a protocol from an incoming packet of data.
+	 **/
 	public Protocol(ByteBuffer buffer) {
 		//Sorry about the one-liner, Java requires that this is the first statement in a constructor #SwiftIsBetter
 		this(NetworkUtils.readList(buffer, new Schema.SchemaConverter()::read));
@@ -168,11 +156,11 @@ public final class Protocol implements Networkable {
 
 	@Override
 	public boolean isSizeExact() {
-		return networkSizeData.isExact();
+		return networkSizeData.exact();
 	}
 
 	@Override
 	public boolean isSizeConstant() {
-		return networkSizeData.isConstant();
+		return networkSizeData.constant();
 	}
 }

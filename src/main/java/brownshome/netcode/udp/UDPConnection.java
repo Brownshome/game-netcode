@@ -1,6 +1,7 @@
 package brownshome.netcode.udp;
 
 import brownshome.netcode.*;
+import brownshome.netcode.NetworkConnection;
 import brownshome.netcode.ordering.OrderingManager;
 import brownshome.netcode.ordering.SequencedPacket;
 
@@ -25,7 +26,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	 */
 
-	/** The RNG used to produce salts, this may not be threadsafe, so it is protected by a synchronized block on itself */
+	/** The RNG used to produce salts, this may not be thread-safe, so it is protected by a synchronized block on itself */
 	private static final SecureRandom SALT_PROVIDER = new SecureRandom();
 
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode.udp");
@@ -39,10 +40,6 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	/** The salt used by the remote connection object */
 	private long remoteSalt;
 
-	/** This queue is used to store packets before the connection is connected, and they can be executed. It is null when
-	 * the connection is connected. */
-	private List<Packet> preConnectQueue = new ArrayList<>();
-
 	private final OrderingManager orderingManager;
 
 	private final MessageScheduler messageScheduler;
@@ -50,17 +47,17 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private CompletableFuture<Void> udpConnectionResponse;
 
 	/** Represents a set of fragments that are being received. */
-	final static class FragmentSet {
-		private final BitSet receivedPackets = new BitSet();
-		private int receivedCount = 0;
+	private final static class FragmentSet {
+		final BitSet receivedPackets = new BitSet();
+		int receivedCount = 0;
 
-		private byte[] data = null;
+		byte[] data = null;
 
 		/** This is -1 if the length of the packet is as yet unknown */
-		private int length = -1;
+		int length = -1;
 
 		/** The sequence number of fragment 0 */
-		private int firstPacketNumber = -1;
+		int firstPacketNumber = -1;
 
 		/** Returns true if all of the fragments have been received. */
 		boolean done() {
@@ -72,37 +69,37 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		}
 
 		void receivedFragment(int sequenceNumber, int fragmentNo, ByteBuffer buffer) {
-			if(receivedPackets.get(fragmentNo)) {
+			if (receivedPackets.get(fragmentNo)) {
 				return; //This data has already been received, not sure if this is possible??
 			}
 
-			if(fragmentNo == 0) {
+			if (fragmentNo == 0) {
 				firstPacketNumber = sequenceNumber;
 			}
 
 			receivedCount++;
 			receivedPackets.set(fragmentNo);
 
-			if(buffer.remaining() < FRAGMENT_SIZE) {
-				//This is the last fragment
+			if (buffer.remaining() < FRAGMENT_SIZE) {
+				// This is the last fragment
 				length = fragmentNo * FRAGMENT_SIZE + buffer.remaining();
 
-				if(data == null) {
+				if (data == null) {
 					data = new byte[length];
 				} else if(data.length < length) {
 					data = Arrays.copyOf(data, length);
 				}
 			}
 
-			if(data == null) {
-				//This gives a conservative estimate of 32k for the fragmented packet
+			if (data == null) {
+				// This gives a conservative estimate of 32k for the fragmented packet
 				data = new byte[Math.max((fragmentNo + 1) * 2, 32) * FRAGMENT_SIZE];
-			} else if(length == -1 && data.length < (fragmentNo + 1) * FRAGMENT_SIZE) {
-				//We don't know the length and the buffer is probably too small, resize it to double the size.
+			} else if (length == -1 && data.length < (fragmentNo + 1) * FRAGMENT_SIZE) {
+				// We don't know the length and the buffer is probably too small, resize it to double the size.
 				data = Arrays.copyOf(data, data.length * 2);
 			}
 
-			//Data exists now, and is an appropriate size, copy it into the master buffer
+			// Data exists now, and is an appropriate size, copy it into the master buffer
 			buffer.get(data, fragmentNo * FRAGMENT_SIZE, buffer.remaining());
 		}
 
@@ -137,7 +134,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		this.manager = manager;
 		this.messageScheduler = new MessageScheduler(this);
 
-		synchronized(SALT_PROVIDER) {
+		synchronized (SALT_PROVIDER) {
 			localSalt = SALT_PROVIDER.nextLong();
 		}
 	}
@@ -158,7 +155,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		manager.executeOn(() -> {
 			try {
 				protocol().handle(this, packet);
-			} catch(NetworkException ne) {
+			} catch (NetworkException ne) {
 				send(new ErrorPacket(ne.getMessage()));
 			}
 
@@ -170,18 +167,18 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	 * This is called by the execution system when a packet cannot be executed due to ordering constraints.
 	 **/
 	private void drop(Packet packet) {
-		String dropMsg = "Packet '" + packet + "' was dropped due to ordering constraints";
+		String dropMsg = "Packet '%s' was dropped due to ordering constraints".formatted(packet);
 
 		LOGGER.warning(dropMsg);
 
-		if(packet.reliable()) {
+		if (packet.reliable()) {
 			send(new ErrorPacket(dropMsg));
 		}
 	}
 
 	@Override
 	public CompletableFuture<Void> connect() {
-		// We sent the connect packet until we get a response.
+		// We sent the connect-packet until we get a response.
 
 		// As the message resend system is not yet useful as there are no acks, we pick a sensible resend delay.
 
@@ -216,7 +213,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 			}
 		}, 0, CONNECT_RESEND_DELAY_MS, TimeUnit.MILLISECONDS);
 
-		//This also triggers on cancels and exceptional failures
+		// This also triggers on cancels and exceptional failures
 		udpConnectionResponse.whenComplete((v, t) -> scheduledFuture.cancel(false));
 
 		return udpConnectionResponse.thenCompose(v -> super.connect());
@@ -285,7 +282,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		try {
 			manager.channel().send(buffer, address());
 			flagPacketSend(challengePacket);
-		} catch(IOException io) {
+		} catch (IOException io) {
 			throw new NetworkException("Unable to send challenge packet to " + address(), this);
 		}
 	}
@@ -323,7 +320,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	void receiveBlockOfMessages(int sequenceNumber, ByteBuffer messages) {
 		int messageNumber = 0;
-		while(messages.hasRemaining()) {
+		while (messages.hasRemaining()) {
 			receiveMessage(sequenceNumber, messageNumber++, messages);
 		}
 	}
@@ -338,14 +335,14 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		assert fragmentSet >= 0;
 		assert fragmentNo >= 0;
 
-		if(fragmentData.remaining() > FRAGMENT_SIZE) {
+		if (fragmentData.remaining() > FRAGMENT_SIZE) {
 			throw new IllegalArgumentException("Fragment buffer too large");
 		}
 
 		FragmentSet set = fragmentSets.computeIfAbsent(fragmentNo, unused -> new FragmentSet());
 		set.receivedFragment(packetSequenceNumber, fragmentNo, fragmentData);
 
-		if(set.done()) {
+		if (set.done()) {
 			receiveMessage(set.sequenceNumber(), 0, set.createDataBuffer());
 			fragmentSets.remove(fragmentSet);
 		}

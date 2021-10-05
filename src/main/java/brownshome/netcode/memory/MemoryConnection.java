@@ -2,12 +2,10 @@ package brownshome.netcode.memory;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import brownshome.netcode.*;
+import brownshome.netcode.util.ConnectionFlusher;
 import brownshome.netcode.ordering.OrderingManager;
-import brownshome.netcode.ordering.PacketType;
 import brownshome.netcode.ordering.SequencedPacket;
 
 /**
@@ -48,7 +46,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 		//The order of these operands does not matter.
 		Protocol.ProtocolNegotiation negotiationResult = Protocol.negotiateProtocol(other.schemas(), manager.schemas());
 
-		this.protocol = negotiationResult.protocol;
+		this.protocol = negotiationResult.protocol();
 		this.flusher = new ConnectionFlusher();
 	}
 
@@ -56,7 +54,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 		other.executeOn(() -> {
 			try {
 				protocol().handle(this, packet);
-			} catch(NetworkException ne) {
+			} catch (NetworkException ne) {
 				var connection = other.getOrCreateConnection(manager);
 				//If the connection has already connected this does nothing
 				connection.connect();
@@ -66,7 +64,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 			orderingManager.notifyExecutionFinished(packet);
 
 			CompletableFuture<Void> future = futures.get(packet);
-			if(future != null) {
+			if (future != null) {
 				future.complete(null);
 			}
 		}, packet.handledBy());
@@ -80,11 +78,11 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 	public synchronized CompletableFuture<Void> send(Packet packet) {
 		CompletableFuture<Void> result = new CompletableFuture<>();
 
-		if(preConnectQueue != null) {
+		if (preConnectQueue != null) {
 			futures.put(packet, result);
 			preConnectQueue.add(packet);
 		} else {
-			if(packet.reliable()) {
+			if (packet.reliable()) {
 				futures.put(packet, result);
 			} else {
 				result.complete(null);
@@ -116,15 +114,15 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 
 	@Override
 	public synchronized CompletableFuture<Void> connect() {
-		if(closingFuture != null) {
+		if (closingFuture != null) {
 			return CompletableFuture.failedFuture(new NetworkException("This connection is closed", this));
 		}
 
-		if(preConnectQueue != null) {
+		if (preConnectQueue != null) {
 			var savedQueue = preConnectQueue;
 			preConnectQueue = null;
 
-			for(Packet packet : savedQueue) {
+			for (Packet packet : savedQueue) {
 				sendImpl(packet);
 			}
 		}
@@ -134,7 +132,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 
 	@Override
 	public synchronized CompletableFuture<Void> closeConnection() {
-		if(closingFuture == null) {
+		if (closingFuture == null) {
 			//TODO tell the other connection to shutdown
 
 			closingFuture = flush().thenRun(() -> {

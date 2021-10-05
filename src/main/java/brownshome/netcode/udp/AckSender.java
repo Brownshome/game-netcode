@@ -30,7 +30,7 @@ final class AckSender {
 	OutgoingAck createAck() {
 		// TODO use rolling acks, and not BitSet
 
-		if(receivedAcks.isEmpty()) {
+		if (receivedAcks.isEmpty()) {
 			return new OutgoingAck(0, 0);
 		}
 
@@ -39,7 +39,7 @@ final class AckSender {
 		decideBounds: {
 			oldestAck = unsentAcks.nextSetBit(0);
 
-			if(oldestAck != -1) {
+			if (oldestAck != -1) {
 				newestAck = oldestAck + Integer.SIZE - 1;
 				break decideBounds;
 			}
@@ -51,10 +51,10 @@ final class AckSender {
 		int field = 0;
 
 		// bit n = newestAck - n where n goes from 0 to SIZE - 1
-		for(int bit = Integer.SIZE - 1; bit >= 0; bit--) {
+		for (int bit = Integer.SIZE - 1; bit >= 0; bit--) {
 			field <<= 1;
 
-			if(newestAck - bit >= 0) {
+			if (newestAck - bit >= 0) {
 				field |= receivedAcks.get(newestAck - bit) ? 1 : 0;
 			}
 		}

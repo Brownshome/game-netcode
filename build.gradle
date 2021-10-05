@@ -1,72 +1,42 @@
 plugins {
-	id 'com.zyxist.chainsaw' version '0.3.1' apply false
-	id 'org.openjfx.javafxplugin' version '0.0.7' apply false
+	id 'org.openjfx.javafxplugin' version '0.0.9' apply false
+	id 'de.jjohannes.extra-java-module-info' version '0.9' apply false
 }
 
+apply plugin: 'java-library'
+
 allprojects {
-	apply plugin: (it.name == 'system-test' || it.name == 'lagatron' ? 'application' : 'java-library')
-	
-	if(it.name != 'lagatron') {
-		apply plugin: 'com.zyxist.chainsaw'
-	}
-	
-	apply plugin: 'eclipse'
-	apply plugin: 'idea'
-	
-	eclipse {
-		classpath {
-			file.whenMerged {
-				entries.findAll { 
-					it.kind == 'lib' || it.kind == 'src' 
-				}.each { 
-					it.entryAttributes['module'] = 'true'
-				}
-			}
-		}
-	}
-
-	task showCompileDeps {
-		doLast {
-			configurations.compileClasspath.each { println it }
-		}
-
-		mustRunAfter classes
-	}
-
-	task showTestDeps {
-		doLast {
-			configurations.testCompileClasspath.each { println it }
-		}
-
-		mustRunAfter classes
-	}
+	apply plugin: 'java'
+	apply plugin: 'de.jjohannes.extra-java-module-info'
 
 	repositories {
 		mavenCentral()
+
+		maven {
+			url = 'https://maven.pkg.github.com/Brownshome/logging'
+			credentials {
+				username = project.properties['gpr.usr']
+				password = project.properties['gpr.key']
+			}
+		}
 	}
 	
 	test {
 		useJUnitPlatform()
 	}
-	
+
+	extraJavaModuleInfo {
+		automaticModule('velocity-engine-core-2.3.jar', 'org.apache.velocity.core')
+	}
+
 	dependencies {
 		testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.2.0'
 		testRuntimeOnly group: 'org.junit.jupiter', name: 'junit-jupiter-engine', version: '5.2.0'
 	}
 }
 
-apply from: 'build-scripts/eclipseIncludeGenerated.gradle'
-
 dependencies {
 	api project(':annotation')
 	annotationProcessor project(':processor')
 	testAnnotationProcessor project(':processor')
-}
-
-javaModule.hacks {
-	//Used for testing purposes
-	exports('brownshome.netcode', 'brownshome.netcode.ordering', 'org.junit.platform.commons')
-	opens('brownshome.netcode', 'brownshome.netcode.ordering', 'org.junit.platform.commons')
-	exports('brownshome.netcode', 'brownshome.netcode.udp', 'org.junit.platform.commons')
-	opens('brownshome.netcode', 'brownshome.netcode.udp', 'org.junit.platform.commons')
 }

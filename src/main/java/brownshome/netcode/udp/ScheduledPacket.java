@@ -10,7 +10,7 @@ import java.util.logging.Logger;
 
 /** Represents a packet that has been dispatched to the UDP scheduler */
 final class ScheduledPacket implements Comparable<ScheduledPacket> {
-	/** Tuning parameter, relating the the aging rate 1/500 = + priority every 500ms */
+	/** Tuning parameter, relating to the aging rate 1/500 = + priority every 500ms */
 	private static final double A = 1.0 / 500.0;
 
 	private final MessageScheduler scheduler;
@@ -37,7 +37,7 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 	}
 
 	/**
-	 * This writes as much packet data as is left in the buffer. If the buffer is too small the write is only partial,
+	 * This writes as much packet data as is left in the buffer. If the buffer is too small the packet write is only partial,
 	 * and further calls to write will write more data.
 	 *
 	 * @param out the buffer to write the data into
@@ -45,11 +45,11 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 	 *
 	 **/
 	void write(ByteBuffer out, UDPConnection connection) {
-		if(buffer == null) {
+		if (buffer == null) {
 			// There is no buffer, this is the first write, check for fragmentation
 
 			int encodedLength = connection.calculateEncodedLength(packet);
-			if(out.remaining() < encodedLength) {
+			if (out.remaining() < encodedLength) {
 				assert false : "Fragmentation is not supported";
 
 				// Write to 'buffer' the full data-size of the packet
@@ -77,8 +77,6 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 			buffer.limit(buffer.position() + transfer);
 			out.put(buffer);
 			buffer.limit(oldLimit);
-
-			buffer.remaining();
 		}
 	}
 
@@ -89,7 +87,7 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 	}
 
 	private double computeChance() {
-		if(enclosingPacket == null) {
+		if (enclosingPacket == null) {
 			return 0.0;
 		}
 
@@ -102,7 +100,7 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 	public int compareTo(ScheduledPacket o) {
 		int scoreCompare = Double.compare(score(), o.score());
 
-		if(scoreCompare == 0) {
+		if (scoreCompare == 0) {
 			return Integer.compare(hashCode(), o.hashCode());
 		}
 
@@ -111,7 +109,7 @@ final class ScheduledPacket implements Comparable<ScheduledPacket> {
 
 	/** Updates tracking and other metrics to indicate that this packet was sent */
 	void signalReceived() {
-		if(future != null) {
+		if (future != null) {
 			future.complete(null);
 		}
 	}

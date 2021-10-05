@@ -49,17 +49,13 @@ public class OrderingManager {
 	}
 
 	/**
-	 * Notifies the sorting system that a packet exists, and should have it order respected. Only reliable packets must be
+	 * Notifies the sorting system that a packet exists, and should have its order respected. Only reliable packets must be
 	 * passed to this method, as this may cause packets to wait for this packet to be received.
-	 * @param packet
+	 * @param packet the packet to pre-deliver
 	 */
 	public synchronized void preDeliverPacket(SequencedPacket packet) {
-		if(!checkSequenceNumber(packet)) {
-			throw new IllegalArgumentException("The packet sequence number is not valid.");
-		}
-
-		var type = packet.packetType();
-		getQueue(type).preReceive(packet);
+		checkSequenceNumber(packet);
+		getQueue(packet.packetType()).preReceive(packet);
 	}
 
 	/**
@@ -71,7 +67,7 @@ public class OrderingManager {
 	 * If a reliable packet arrives later that should have been ordered after a packet that has already been delivered then
 	 * undefined behaviour will occur.
 	 *
-	 * @param packet is used to order packets. For and pair of numbers A and B the ordering is defined using
+	 * @param packet is used to order packets. For a pair of numbers A and B the ordering is defined using
 	 *               A - B compared to 0, with later sequence numbers coming later. This avoids overflow issues
 	 *               as long as the numbers are not more than Integer.MAX_VALUE apart.
 	 *
@@ -82,50 +78,46 @@ public class OrderingManager {
 	 * @throws ConnectionOverloadedException if the packet cannot be added due to this connection having too many outstanding packets in the queue.
 	 **/
 	public synchronized void deliverPacket(SequencedPacket packet) {
-		//1. check sequence number
-		if(!checkSequenceNumber(packet)) {
-			throw new InvalidSequenceNumberException("The packet sequence number is not valid.");
-		}
+		// 1. check sequence number
+		checkSequenceNumber(packet);
 
-		if(packetsWaiting >= MAXIMUM_OUTSTANDING_PACKETS) {
+		if (packetsWaiting >= MAXIMUM_OUTSTANDING_PACKETS) {
 			throw new ConnectionOverloadedException("Connection overloaded, there are too many packets being executed.");
 		}
 
 		packetsWaiting++;
 		var type = packet.packetType();
 
-		//2. place onto the queue
+		// 2. place onto the queue
 		getQueue(type).add(packet);
 	}
 
-	/** Returns true if the number is valid */
-	private boolean checkSequenceNumber(SequencedPacket packet) {
-		if(mostRecentPacket == null || mostRecentPacket.compareTo(packet) < 0) {
+	/**
+	 * Throws {@link InvalidSequenceNumberException} if the packet cannot fit in the current sequence
+	 * @param packet the packet to test
+	 * @throws InvalidSequenceNumberException if the sequence number is invalid
+	 */
+	private void checkSequenceNumber(SequencedPacket packet) {
+		if (mostRecentPacket == null || mostRecentPacket.compareTo(packet) < 0) {
 			mostRecentPacket = packet;
 		}
 
-		//The number is invalid if it is smaller than or equal to the lowest number and larger than or equal to the largest number
+		// The number is invalid if it is smaller than or equal to the lowest number and larger than or equal to the largest number
 
 		SequencedPacket smallestPacket = null;
 
-		for(var value : processingQueues.values()) {
+		for (var value : processingQueues.values()) {
 			SequencedPacket localSmallest = value.oldestPacket();
 
-			if(localSmallest != null &&
+			if (localSmallest != null &&
 					(smallestPacket == null || smallestPacket.compareTo(localSmallest) > 0)) {
 				smallestPacket = localSmallest;
 			}
 		}
 
-		if(smallestPacket == null) {
-			return true;
+		if (smallestPacket != null && packet.compareTo(smallestPacket) <= 0 && packet.compareTo(mostRecentPacket) >= 0) {
+			throw new InvalidSequenceNumberException("The packet sequence number is not valid.");
 		}
-
-		if(packet.compareTo(smallestPacket) <= 0 && packet.compareTo(mostRecentPacket) >= 0) {
-			return false; //INVALID
-		}
-
-		return true;
 	}
 
 	/**
@@ -137,16 +129,9 @@ public class OrderingManager {
 
 		packetsWaiting--;
 
-		var type = new PacketType(packet);
-
-		var queue = getQueue(type);
-
 		var sequencedPacket = sequencedPacketMap.remove(packet);
-
-		queue.notifyExecutionFinished(sequencedPacket);
+		getQueue(new PacketType(packet)).notifyExecutionFinished(sequencedPacket);
 	}
-
-
 
 	/**
 	 * This call guarantees that no packet with a sequence number smaller that this will arrive, until the sequence
@@ -155,7 +140,7 @@ public class OrderingManager {
 	public void trimPacketNumbers(int packet) {
 		trim = packet;
 
-		for(PacketTypeQueue queue : processingQueues.values()) {
+		for (PacketTypeQueue queue : processingQueues.values()) {
 			queue.trim(packet);
 		}
 	}

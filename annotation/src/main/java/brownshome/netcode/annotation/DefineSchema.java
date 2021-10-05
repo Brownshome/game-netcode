@@ -1,6 +1,3 @@
-/**
- * 
- */
 package brownshome.netcode.annotation;
 
 import static java.lang.annotation.ElementType.PACKAGE;
@@ -16,7 +13,7 @@ import java.lang.annotation.Target;
  * This will generate a {Name}PacketSchema class in this package that should be added to the list of used schemas for
  * a connection.
  *
- * The version number is used to negotiate the correct schema. Differing major versions will not be able to connection, while
+ * The version number is used to negotiate the correct schema. Differing major versions will not be able to connect, while
  * differing minor versions will negotiate to the lowest matching minor version.
  *
  * @author James Brown

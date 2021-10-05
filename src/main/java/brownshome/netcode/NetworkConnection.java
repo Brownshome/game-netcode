@@ -6,6 +6,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
+import brownshome.netcode.util.ConnectionFlusher;
+
 public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> {
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 
@@ -88,8 +90,8 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 	@Override
 	public CompletableFuture<Void> send(Packet packet) {
-		//The read lock must contain the sending line, as otherwise there might be a packet in the process of sending
-		//when the state is changed from READY to NEGOTIATING
+		// The read lock must contain the sending line, as otherwise there might be a packet in the process of sending
+		// when the state is changed from READY to NEGOTIATING
 		try { stateLock.readLock().lock();
 			if(state == State.CLOSED) {
 				return CompletableFuture.failedFuture(new NetworkException("The connection is closed.", this));
@@ -127,20 +129,20 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 	@Override
 	public CompletableFuture<Void> connect() {
-		//Send a connect packet.
+		// Send a connect-packet.
 
 		try { stateLock.writeLock().lock();
 
 			if(state == State.NO_CONNECTION) {
 				state = State.NEGOTIATING;
 
-				//Start waiting for the confirmProtocolPacket
+				// Start waiting for the confirmProtocolPacket
 				confirmReceivedFuture = new CompletableFuture<>();
 				CompletableFuture<Void> negotiateSentPacket = sendWithoutStateChecks(new NegotiateProtocolPacket(connectionManager().schemas()));
 
-				//This is needed to detect sending failures. If we just wait for the received then if the negotiate packet
-				//fails this future locks up. The future still may lock up if the confirm fails, but this is a little
-				//bit more friendly.
+				// This is needed to detect sending failures. If we just wait for the received then if the negotiate-packet
+				// fails this future locks up. The future still may lock up if the confirmation fails, but this is a little
+				// bit more friendly.
 
 				connectFuture = CompletableFuture.allOf(negotiateSentPacket, confirmReceivedFuture);
 
@@ -155,9 +157,9 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		try { stateLock.writeLock().lock();
 			switch(state) {
 				case NO_CONNECTION:
-					//Connect was not called, change the state to CLOSED, any packets that were queued up, will never be
-					//sent, as connect can never be called. So terminate them all.
-					//Also set the connect method to return instantly to keep to spec.
+					// Connect was not called, change the state to CLOSED, any packets that were queued up, will never be
+					// sent, as connect can never be called. So terminate them all.
+					// Also set the connect method to return instantly to keep to the specification.
 
 					connectFuture = CompletableFuture.completedFuture(null);
 
@@ -180,12 +182,12 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 					state = State.CLOSED;
 
-					//Shut down the flusher
+					// Shut down the flusher
 					closeFuture.thenRun(this::postCloseActions);
 
 					return closeFuture;
 				case CLOSED:
-					//Take no action
+					// Take no action
 					return closeFuture;
 				default:
 					throw new IllegalStateException("State cannot be null");
@@ -222,25 +224,25 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 	protected void receiveConfirmPacket(Protocol protocol) {
 		try { stateLock.writeLock().lock();
-			switch(state) {
+			switch (state) {
 				default:
 					throw new NetworkException("Unrequested protocol confirmation packet", this);
 				case NEGOTIATING:
-					//If we were negotiating set the state to ready.
+					// If we were negotiating set the state to ready.
 					state = State.READY;
-					//FALL THROUGH
+					// FALL THROUGH
 				case CLOSED:
-					//If we were closed, don't change the state, but send the packets in the send buffer, and notify the
-					//connect future.
-					if(confirmReceivedFuture == null || confirmReceivedFuture.isDone()) {
-						//We did not ask for this packet.
+					// If we were closed, don't change the state, but send the packets in the send buffer, and notify the
+					// connect future.
+					if (confirmReceivedFuture == null || confirmReceivedFuture.isDone()) {
+						// We did not ask for this packet.
 						throw new NetworkException("Unrequested protocol confirmation packet", this);
 					}
 
 					confirmReceivedFuture.complete(null);
 					this.protocol = protocol;
 
-					//Send all of the packets
+					// Send all of the packets
 					sendAllOfThePackets();
 			}
 
@@ -249,28 +251,22 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 	}
 
 	private void sendAllOfThePackets() {
-		for(var queued : sendBuffer) {
+		for (var queued : sendBuffer) {
 			sendWithoutStateChecks(queued.packet).thenAccept(queued.future::complete);
 		}
 	}
 
 	protected void receiveNegotiatePacket(Protocol protocol) {
 		try { stateLock.writeLock().lock();
-			switch(state) {
-				case NO_CONNECTION:
+			switch (state) {
+				case NO_CONNECTION -> {
 					state = State.READY;
 					this.protocol = protocol;
-
 					sendAllOfThePackets();
-
-					break;
-				case READY:
-					this.protocol = protocol;
-					break;
-				case NEGOTIATING:
-					throw new NetworkException("Incoming negotiation while negotiating.", this);
-				case CLOSED:
-					throw new NetworkException("This connection is closed.", this);
+				}
+				case READY -> this.protocol = protocol;
+				case NEGOTIATING -> throw new NetworkException("Incoming negotiation while negotiating.", this);
+				case CLOSED -> throw new NetworkException("This connection is closed.", this);
 			}
 		} finally { stateLock.writeLock().unlock(); }
 	}

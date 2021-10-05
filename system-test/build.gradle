@@ -1,9 +1,17 @@
-mainClassName = 'brownshome.netcode.systemtest.Main'
-
-dependencies {
-	implementation rootProject
-	
-	annotationProcessor project(':processor')
+plugins {
+	id 'application'
 }
 
-apply from: '../build-scripts/eclipseIncludeGenerated.gradle'
+dependencies {
+	implementation project(':')
+	
+	annotationProcessor project(':processor')
+	annotationProcessor 'brownshome:logging-slf4j:1.0.0'
+
+	runtimeOnly 'brownshome:logging-slf4j:1.0.0'
+}
+
+run {
+	mainClass = 'brownshome.netcode.systemtest.Main'
+	mainModule = 'brownshome.netcode.systemtest'
+}

@@ -23,10 +23,6 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 
 	public static final int BUFFER_SIZE = 16 * 1024 * 1024;
 
-	static {
-		UDP_SEND_THREAD_GROUP.setDaemon(true);
-	}
-
 	private final List<Schema> schema;
 	private final DatagramChannel channel;
 	private final InetSocketAddress address;
@@ -63,8 +59,11 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 	private final Thread listenerThread;
 
 	/** This is a single threaded executor that should be used to dispatch items to the channel. */
-	private final ScheduledThreadPoolExecutor submissionThread = new ScheduledThreadPoolExecutor(1,
-			task -> new Thread(UDP_SEND_THREAD_GROUP, task, "UDP-Send-" + address()));
+	private final ScheduledThreadPoolExecutor submissionThread = new ScheduledThreadPoolExecutor(1, task -> {
+		var t = new Thread(UDP_SEND_THREAD_GROUP, task, "UDP-Send-" + address());
+		t.setDaemon(true);
+		return t;
+	});
 
 	public UDPConnectionManager(List<Schema> schema, int port) throws IOException {
 		this.schema = schema;
@@ -75,7 +74,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		channel.setOption(StandardSocketOptions.SO_SNDBUF, BUFFER_SIZE);
 		channel.setOption(StandardSocketOptions.SO_RCVBUF, BUFFER_SIZE);
 
-		if(port == 0) {
+		if (port == 0) {
 			channel.bind(null);
 			port = ((InetSocketAddress) channel.getLocalAddress()).getPort();
 		} else {
@@ -87,16 +86,16 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 		listenerThread = new Thread(() -> {
 			ByteBuffer buffer = ByteBuffer.allocate(1024);
 
-			while(true) {
+			while (true) {
 				InetSocketAddress remoteAddress;
 
 				try {
 					remoteAddress = (InetSocketAddress) channel.receive(buffer);
-				} catch(ClosedByInterruptException cbie) {
+				} catch (ClosedByInterruptException cbie) {
 					//Exit
 					LOGGER.info(String.format("Port %d UDP listener shutting down", address.getPort()));
 					return;
-				} catch(IOException e) {
+				} catch (IOException e) {
 					LOGGER.log(Level.SEVERE, "Error waiting on socket", e);
 					return;
 				}
@@ -142,17 +141,17 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 
 	@Override
 	public void close() {
-		for(var connection : connections.values()) {
+		for (var connection : connections.values()) {
 			connection.closeConnection();
 		}
 
-		for(var connection : connections.values()) {
+		for (var connection : connections.values()) {
 			try {
 				connection.closeConnection().get();
-			} catch(InterruptedException e) {
+			} catch (InterruptedException e) {
 				//Exit from the close operation.
 				break;
-			} catch(ExecutionException e) {
+			} catch (ExecutionException e) {
 				LOGGER.log(Level.WARNING,
 						String.format("Connection '%s' failed to terminate cleanly", connection.address()),
 						e.getCause());
@@ -166,7 +165,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 			LOGGER.info("Shutting down submission thread for '" + address() + "'");
 			submissionThread.shutdown();
 			submissionThread.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-		} catch(InterruptedException e) { /* Stop waiting */ }
+		} catch (InterruptedException e) { /* Stop waiting */ }
 	}
 
 	DatagramChannel channel() {

@@ -16,7 +16,7 @@ final class Ack {
 		
 		//Bit n is lsbSequenceNumber - n + 1, where n starts from 1
 		int n = 0;
-		for(; bitfield != 0; bitfield >>>= 1) {
+		for (; bitfield != 0; bitfield >>>= 1) {
 			n++;
 			if((bitfield & 1) == 1) {
 				ackedPackets[i++] = lsbSequenceNumber - n + 1;

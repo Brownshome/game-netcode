@@ -141,9 +141,9 @@ final class MessageScheduler {
 	 * A future that will be triggered when all acks that need to be sent have been sent.
 	 */
 	synchronized CompletableFuture<Void> closeMessageSchedulerFuture() {
-		if(acksSentFuture != null) {
+		if (acksSentFuture != null) {
 			return acksSentFuture;
-		} else if(ackSender.hasUnsentAcks()) {
+		} else if (ackSender.hasUnsentAcks()) {
 			return acksSentFuture = new CompletableFuture<>();
 		} else {
 			return acksSentFuture = CompletableFuture.completedFuture(null);
@@ -155,12 +155,12 @@ final class MessageScheduler {
 		// The options for sending packets are as follows...
 		// Either resend an old message, or create a new message.
 
-		if(packetsNotReceived.isEmpty()) {
+		if (packetsNotReceived.isEmpty()) {
 			// Send an ack packet
 
-			if(ackSender.hasUnsentAcks()) {
+			if (ackSender.hasUnsentAcks()) {
 				sendConstructedDataPacket(new ConstructedDataPacket(nextSequenceNumber++, connection, 0));
-			} else if(acksSentFuture != null) {
+			} else if (acksSentFuture != null) {
 				acksSentFuture.complete(null);
 			}
 
@@ -174,24 +174,24 @@ final class MessageScheduler {
 		while(!sortedPackets.isEmpty()) {
 			var mostImportantPacket = sortedPackets.first();
 
-			if(mostImportantPacket.score() < SCORE_CUTTOFF) {
+			if (mostImportantPacket.score() < SCORE_CUTTOFF) {
 				break;
 			}
 
 			ConstructedDataPacket toSend;
 
-			if(mostImportantPacket.containingPacket() != null && mostImportantPacket.containingPacket().dataBuffer.remaining() <= bytesToSend) {
+			if (mostImportantPacket.containingPacket() != null && mostImportantPacket.containingPacket().dataBuffer.remaining() <= bytesToSend) {
 				toSend = mostImportantPacket.containingPacket();
 			} else {
 				int length = (int) Math.min(MessageScheduler.MTU, bytesToSend);
 				toSend = new ConstructedDataPacket(nextSequenceNumber, connection, length);
 
-				for(var possibleChild : sortedPackets) {
+				for (var possibleChild : sortedPackets) {
 					if(possibleChild.containingPacket() != null) {
 						continue;
 					}
 
-					if(toSend.dataBuffer.remaining() >= possibleChild.size()) {
+					if (toSend.dataBuffer.remaining() >= possibleChild.size()) {
 						toSend.addPacket(possibleChild);
 					}
 				}
@@ -199,7 +199,7 @@ final class MessageScheduler {
 				// Change to send mode.
 				toSend.dataBuffer.flip();
 
-				if(toSend.children().size() == 0) {
+				if (toSend.children().size() == 0) {
 					// There are no packets that can be sent.
 					break;
 				}
@@ -272,7 +272,7 @@ final class MessageScheduler {
 		ackSender.receivedPacket(sequenceNumber);
 	}
 
-	private static int RUNNING_AVG_LENGTH = 10;
+	private static final int RUNNING_AVG_LENGTH = 10;
 
 	private void updateRttEstimate(Duration rtt) {
 		rttEstimate = rttEstimate.multipliedBy(RUNNING_AVG_LENGTH - 1).plus(rtt).dividedBy(RUNNING_AVG_LENGTH);

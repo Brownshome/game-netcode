@@ -22,7 +22,7 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	/**
 	 * Waits until all packets have been sent, or reliably received.
 	 *
-	 * If a send call on another thread overlaps with the send and flush calls on this thread, it is undefined whether
+	 * If a send-call on another thread overlaps with the send-calls and flush-calls on this thread, it is undefined whether
 	 * that send will be flushed or not by this call, even if the packet on the other thread was sent first. It is up
 	 * to the user to ensure that send calls do not overlap with the flush call in this way if flushes should respect
 	 * packet send order.
@@ -64,17 +64,17 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	@Override
 	default void close() {
 		try {
-			awaitCloseConnection();
+			closeSync();
 		} catch(InterruptedException e) {
 			throw new NetworkException(e, this);
 		}
 	}
 
-	default void awaitCloseConnection() throws InterruptedException, NetworkException {
+	default void closeSync() throws InterruptedException, NetworkException {
 		awaitFuture(closeConnection());
 	}
 
-	default <T> T awaitFuture(Future<T> future) throws InterruptedException, NetworkException {
+	private <T> T awaitFuture(Future<T> future) throws InterruptedException, NetworkException {
 		try {
 			return future.get();
 		} catch(ExecutionException ee) {
@@ -88,9 +88,15 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 		}
 	}
 
-	/** Returns the connection manager that created this connection */
+	/**
+	 * The connection manager that created this connection
+	 * @return the connection manager
+	 **/
 	ConnectionManager<ADDRESS, ? extends Connection<ADDRESS>> connectionManager();
 
-	/** Returns the protocol that is used by this connection. */
+	/**
+	 * The protocol that is used by this connection.
+	 * @return the protocol
+	 **/
 	Protocol protocol();
 }

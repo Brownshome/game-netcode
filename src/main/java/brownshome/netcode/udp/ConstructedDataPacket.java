@@ -51,7 +51,7 @@ final class ConstructedDataPacket {
 	}
 
 	void signalReceived() {
-		for(var child : childPackets) {
+		for (var child : childPackets) {
 			child.signalReceived();
 		}
 	}

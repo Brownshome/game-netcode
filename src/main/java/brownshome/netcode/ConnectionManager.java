@@ -21,7 +21,10 @@ public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRES
 	 **/
 	void registerExecutor(String name, Executor executor, int concurrency);
 
-	/** Returns a list of all schemas that should be used with this connection. */
+	/**
+	 * A list of all schemas that should be used with this connection.
+	 * @return the list
+	 **/
 	List<Schema> schemas();
 
 	/**
@@ -36,6 +39,8 @@ public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRES
 	/**
 	 * Gets the address of this connection manager. This is the address that other clients should connect to if they want
 	 * to connect to this manager.
+	 *
+	 * @return the address
 	 */
 	ADDRESS address();
 }

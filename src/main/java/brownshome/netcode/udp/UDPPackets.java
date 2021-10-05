@@ -13,28 +13,19 @@ import java.util.zip.CRC32;
 /**
  * This class contains packets that are sent directly over the UDP connection. They should not be sent by clients
  */
-public class UDPPackets {
+final class UDPPackets {
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
+
+	private UDPPackets() { }
 
 	/** This is a special converter that reads the remaining data from the packet into a buffer, it must only be used for
 	 * raw data access, and only for the UDP base packets. */
 	static class TrailingByteBufferConverter implements Converter<ByteBuffer> {
-		/**
-		 * Writes the supplied object into the byte buffer.
-		 *
-		 * @param buffer
-		 * @param object
-		 */
 		@Override
 		public void write(ByteBuffer buffer, ByteBuffer object) {
 			buffer.put(object);
 		}
 
-		/**
-		 * Reads the supplied object from the byte buffer.
-		 *
-		 * @param buffer
-		 */
 		@Override
 		public ByteBuffer read(ByteBuffer buffer) {
 			byte[] array = new byte[buffer.remaining()];
@@ -42,29 +33,16 @@ public class UDPPackets {
 			return ByteBuffer.wrap(array);
 		}
 
-		/**
-		 * Returns the size of the object in bytes
-		 *
-		 * @param object
-		 */
 		@Override
 		public int size(ByteBuffer object) {
 			return object.remaining();
 		}
 
-		/**
-		 * Returns true if the size returned is exactly how many bytes will be needed.
-		 *
-		 * @param object
-		 */
 		@Override
 		public boolean isSizeExact(ByteBuffer object) {
 			return true;
 		}
 
-		/**
-		 * Returns true if the size returned is always the same number.
-		 */
 		@Override
 		public boolean isSizeConstant() {
 			return false;
@@ -72,31 +50,31 @@ public class UDPPackets {
 	}
 
 	/**
-	 * This method represents the connect packet on the UDP layer that is sent before the connection is set up.
+	 * This method represents the connect-packet on the UDP layer that is sent before the connection is set up.
 	 */
-	//Client to Server
+	// Client to Server
 	@DefinePacket(name = "Connect")
 	public static void connect(@ConnectionParam Connection<?> connection, long clientSalt, @UseConverter(Padding.class) Void unused) {
 		UDPConnection udpConnection;
 
 		try {
 			udpConnection = (UDPConnection) connection;
-		} catch(ClassCastException cce) {
+		} catch (ClassCastException cce) {
 			throw new IllegalStateException("'Connect' can only be received by a UDP connection", cce);
 		}
 
 		udpConnection.receiveConnectPacket(clientSalt);
 	}
 
-	//Server to Client
-	//Hash should equal hash(clientSalt)
+	// Server to Client
+	// Hash should equal hash(clientSalt)
 	@DefinePacket(name = "ConnectionDenied")
 	public static void connectionDenied(@ConnectionParam Connection<?> connection, int hash) {
 		UDPConnection udpConnection;
 
 		try {
 			udpConnection = (UDPConnection) connection;
-		} catch(ClassCastException cce) {
+		} catch (ClassCastException cce) {
 			throw new IllegalStateException("'ConnectionDenied' can only be received by a UDP connection", cce);
 		}
 
@@ -106,8 +84,8 @@ public class UDPPackets {
 		update(crc, salt);
 		int digest = (int) crc.getValue();
 
-		if(hash != digest) {
-			//Ignore the packet, this is corrupt, or malicious
+		if (hash != digest) {
+			// Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
 		} else {
 			udpConnection.connectionDenied();
@@ -124,7 +102,7 @@ public class UDPPackets {
 
 		try {
 			udpConnection = (UDPConnection) connection;
-		} catch(ClassCastException cce) {
+		} catch (ClassCastException cce) {
 			throw new IllegalStateException("'Challenge' can only be received by a UDP connection", cce);
 		}
 
@@ -132,8 +110,8 @@ public class UDPPackets {
 
 		int digest = hashChallengePacket(localSalt, serverSalt);
 
-		if(hash != digest) {
-			//Ignore the packet, this is corrupt, or malicious
+		if (hash != digest) {
+			// Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
 		} else {
 			udpConnection.receiveChallengeSalt(serverSalt);
@@ -202,31 +180,27 @@ public class UDPPackets {
 	public static void udpData(@ConnectionParam Connection<?> connection, int hash, int mostRecentAck, int acks,
 							   int sequenceNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer messages) {
 
-		UDPConnection udpConnection;
-
-		try {
-			udpConnection = (UDPConnection) connection;
-		} catch(ClassCastException cce) {
-			throw new IllegalStateException("'UDPData' can only be received by a UDP connection", cce);
+		if (!(connection instanceof UDPConnection udpConnection)) {
+			throw  new IllegalStateException("'UDPData' can only be received by a UDP connection");
 		}
 
 		long localSalt = udpConnection.localSalt();
 
 		int digest = hashDataPacket(localSalt, mostRecentAck, acks, sequenceNumber, messages.duplicate());
 
-		if(hash != digest) {
-			//Ignore the packet, this is corrupt, or malicious
+		if (hash != digest) {
+			// Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt packet received from '" + connection.address() + "'");
 		} else {
 			udpConnection.receiveAcks(new Ack(mostRecentAck, acks));
 
-			if(messages.remaining() == 0) {
+			if (messages.remaining() == 0) {
 				// Ack only packet, don't receive the SEQ
 				// TODO make this a separate packet?
 				return;
 			}
 
-			if(!udpConnection.receiveSequenceNumber(sequenceNumber)) {
+			if (!udpConnection.receiveSequenceNumber(sequenceNumber)) {
 				LOGGER.fine("Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
 				return;
 			}
@@ -244,14 +218,10 @@ public class UDPPackets {
 	@DefinePacket(name = "UDPFragment")
 	public static void udpFragment(@ConnectionParam Connection<?> connection, int hash, int acks, int sequenceNumber, byte fragmentSetID,
 	                               short fragmentNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer fragmentData) {
-		UDPConnection udpConnection;
-
 		// TODO most recent ack.
 
-		try {
-			udpConnection = (UDPConnection) connection;
-		} catch(ClassCastException cce) {
-			throw new IllegalStateException("'UDPFragment' can only be received by a UDP connection", cce);
+		if (!(connection instanceof UDPConnection udpConnection)) {
+			throw  new IllegalStateException("'UDPFragment' can only be received by a UDP connection");
 		}
 
 		long localSalt = udpConnection.localSalt();
@@ -263,12 +233,17 @@ public class UDPPackets {
 		crc.update(fragmentData.duplicate());
 		int digest = (int) crc.getValue();
 
-		if(hash != digest) {
+		if (hash != digest) {
 			//Ignore the packet, this is corrupt, or malicious
 			LOGGER.info("Corrupt fragment received from '" + connection.address() + "'");
 		} else {
-			udpConnection.receiveSequenceNumber(sequenceNumber);
 			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
+
+			if (!udpConnection.receiveSequenceNumber(sequenceNumber)) {
+				LOGGER.fine("Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
+				return;
+			}
+
 			udpConnection.receiveFragment(sequenceNumber, Byte.toUnsignedInt(fragmentSetID), Short.toUnsignedInt(fragmentNumber), fragmentData);
 		}
 	}

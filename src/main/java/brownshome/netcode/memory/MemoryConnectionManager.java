@@ -27,7 +27,7 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 
 	private final List<Schema> schema;
 
-	private final class BlockingExecutor implements Executor {
+	private static final class BlockingExecutor implements Executor {
 		final Semaphore semaphore;
 		final Executor executor;
 
@@ -40,7 +40,7 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 		public void execute(Runnable command) {
 			try {
 				semaphore.acquire();
-			} catch(InterruptedException e) {
+			} catch (InterruptedException e) {
 				throw new RejectedExecutionException("Waiting interrupted");
 			}
 
@@ -82,17 +82,17 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 
 	@Override
 	public void close() {
-		for(var connection : connections.values()) {
+		for (var connection : connections.values()) {
 			connection.closeConnection();
 		}
 
-		for(var connection : connections.values()) {
+		for (var connection : connections.values()) {
 			try {
 				connection.closeConnection().get();
-			} catch(InterruptedException e) {
+			} catch (InterruptedException e) {
 				//Exit from the close operation.
 				return;
-			} catch(ExecutionException e) {
+			} catch (ExecutionException e) {
 				LOGGER.log(Level.WARNING,
 						String.format("Connection '%s' failed to terminate cleanly", connection.address()),
 						e.getCause());

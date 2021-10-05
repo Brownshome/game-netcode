@@ -5,31 +5,12 @@ import brownshome.netcode.Packet;
 import java.util.Objects;
 
 /**
- * This is a struct that is used to denote a single type of packets
+ * This is a record that is used to denote a single type of packets
+ * @param id the packet id that this packet type uses
+ * @param schemaName the name of the schema that this packet uses
  */
-public class PacketType {
-	final String schemaName;
-	final int id;
-
-	PacketType(String schemaName, int id) {
-		this.schemaName = schemaName;
-		this.id = id;
-	}
-
-	PacketType(Packet packet) {
+public record PacketType(String schemaName, int id) {
+	public PacketType(Packet packet) {
 		this(packet.schemaName(), packet.packetID());
-	}
-
-	@Override
-	public boolean equals(Object o) {
-		if(this == o) return true;
-		if(o == null || getClass() != o.getClass()) return false;
-		PacketType that = (PacketType) o;
-		return id == that.id && schemaName.equals(that.schemaName);
-	}
-
-	@Override
-	public int hashCode() {
-		return schemaName.hashCode() * 31 + id;
 	}
 }

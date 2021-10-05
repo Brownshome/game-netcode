@@ -8,9 +8,6 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-import brownshome.netcode.annotation.converter.Converter;
-import brownshome.netcode.sizing.NetworkObjectSize;
-
 public final class NetworkUtils {
 	public static final NetworkObjectSize INT_SIZE = new NetworkObjectSize(Integer.BYTES, true, true);
 	public static final NetworkObjectSize LONG_SIZE = new NetworkObjectSize(Long.BYTES, true, true);
@@ -26,14 +23,14 @@ public final class NetworkUtils {
 	public static String readString(ByteBuffer buffer) {
 		int length = buffer.getInt();
 		
-		if(buffer.hasArray()) {
+		if (buffer.hasArray()) {
 			String string = new String(buffer.array(), buffer.position(), length, StandardCharsets.UTF_8);
 			buffer.position(buffer.position() + length);
 			return string;
 		}
 		
 		//Guard against OOM
-		if(length > buffer.remaining()) {
+		if (length > buffer.remaining()) {
 			throw new IllegalArgumentException("Not enough data to build a string of length " + length);
 		}
 		
@@ -48,13 +45,13 @@ public final class NetworkUtils {
 	public static <T> List<T> readList(ByteBuffer buffer, Function<? super ByteBuffer, ? extends T> itemFunc) {
 		int length = buffer.getInt();
 		
-		if(length > buffer.remaining()) {
+		if (length > buffer.remaining()) {
 			throw new IllegalArgumentException("Not enough data to build a list of length " + length);
 		}
 		
 		List<T> list = new ArrayList<>(length);
 		
-		for(int i = 0; i < length; i++) {
+		for (int i = 0; i < length; i++) {
 			list.add(itemFunc.apply(buffer));
 		}
 		
@@ -71,7 +68,7 @@ public final class NetworkUtils {
 	public static <T> void writeCollection(ByteBuffer buffer, Collection<T> items, BiConsumer<? super ByteBuffer, ? super T> itemFunc) {
 		buffer.putInt(items.size());
 		
-		for(T t : items) {
+		for (T t : items) {
 			itemFunc.accept(buffer, t);
 		}
 	}
@@ -88,7 +85,7 @@ public final class NetworkUtils {
 	 */
 	public static <T> NetworkObjectSize calculateSize(Collection<T> collection, Function<? super T, NetworkObjectSize> converter) {
 		NetworkObjectSize rawList = collection.stream()
-				.map(converter::apply)
+				.map(converter)
 				.reduce(NetworkObjectSize.IDENTITY, NetworkObjectSize::combine);
 		
 		return NetworkObjectSize.combine(INT_SIZE, rawList).nonConstant();

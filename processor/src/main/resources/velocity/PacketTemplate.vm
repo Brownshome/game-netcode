@@ -11,7 +11,7 @@ import brownshome.netcode.Connection;
 import brownshome.netcode.NetworkException;
 import brownshome.netcode.NetworkUtils;
 import brownshome.netcode.Packet;
-import brownshome.netcode.sizing.NetworkObjectSize;
+import brownshome.netcode.NetworkObjectSize;
 
 public final class ${packet.name()}Packet extends Packet {
 	Logger LOGGER = Logger.getLogger("brownshome.netcode");
@@ -65,12 +65,12 @@ public final class ${packet.name()}Packet extends Packet {
 
 	@Override
 	public boolean isSizeExact() {
-		return size.isExact();
+		return size.exact();
 	}
 	
 	@Override
 	public boolean isSizeConstant() {
-		return size.isConstant();
+		return size.constant();
 	}
 	
 	@Override

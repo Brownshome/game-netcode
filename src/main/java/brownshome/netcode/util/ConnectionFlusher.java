@@ -1,9 +1,8 @@
-package brownshome.netcode;
+package brownshome.netcode.util;
 
 import java.util.ArrayDeque;
-import java.util.LinkedHashSet;
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 /**
@@ -16,7 +15,7 @@ import java.util.logging.Logger;
 public final class ConnectionFlusher {
 	private static final Logger LOGGER = Logger.getLogger("brownshome.netcode");
 
-	private final class QueueItem {
+	private static final class QueueItem {
 		final boolean isFlushQuery;
 		final CompletableFuture<Void> future;
 
@@ -41,7 +40,7 @@ public final class ConnectionFlusher {
 	public synchronized CompletableFuture<Void> flush() {
 		// If there is nothing in the queue we can't add a flush marker, as there is nothing to call it.
 
-		if(queue.isEmpty()) {
+		if (queue.isEmpty()) {
 			return CompletableFuture.completedFuture(null);
 		} else {
 			QueueItem item = new QueueItem();
@@ -66,7 +65,7 @@ public final class ConnectionFlusher {
 
 		// It is guaranteed that future is complete. When this method is called.
 
-		while(!queue.isEmpty()) {
+		while (!queue.isEmpty()) {
 			QueueItem next = queue.element();
 
 			if(!next.isFlushQuery && !next.future.isDone()) {

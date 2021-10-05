@@ -19,13 +19,11 @@ import java.util.*;
  *
  * Packets enter the PRE_RECEIVE state via a method.
  * Packets enter the RECEIVED state in any order via 'add'
- * Packets enter processing in the order of earliest sequence number first, when they move into RECEIVED, or when a packet they
+ * Packets enter PROCESSING in the order of the earliest sequence number first, when they move into RECEIVED, or when a packet they
  * are waiting for enters DONE.
  * Packets enter DONE in any order
- *
- * Packets are checked for sendability just before being sent, so there may be packets in
  */
-class PacketTypeQueue {
+final class PacketTypeQueue {
 	private final OrderingManager manager;
 
 	/** The list of types that we cannot overtake. This is the list returned by the packet. If it is null it has not been populated */
@@ -51,11 +49,6 @@ class PacketTypeQueue {
 	private final NavigableSet<SequencedPacket> processing = new TreeSet<>();
 
 	/**
-	 * The oldest packet that can be received.
-	 */
-	private SequencedPacket trim;
-
-	/**
 	 * youngest(DONE, PROCESSING) of all types that we cannot be overtaken by.
 	 * The youngest packet that has been started that this queue cannot be overtaken by
 	 */
@@ -71,8 +64,8 @@ class PacketTypeQueue {
 	 * If this packet cannot be executed ever, it will be immediately dropped
 	 **/
 	void preReceive(SequencedPacket packet) {
-		//If this packet is older than the youngest packet that has started processing, then it can never be started
-		if(youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) < 0) {
+		// If this packet is older than the youngest packet that has started processing, then it can never be started
+		if (youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) < 0) {
 			manager.dropPacket(packet);
 		} else {
 			preReceive.add(packet);
@@ -85,19 +78,19 @@ class PacketTypeQueue {
 	 * If this packet cannot be executed ever, it will be immediately dropped
 	 */
 	void add(SequencedPacket packet) {
-		if(cannotOvertake == null) {
+		if (cannotOvertake == null) {
 			populateLinkages(packet.packet());
 		}
 
 		preReceive.remove(packet);
 
 		// If a packet has started that should be after this one, we cannot run.
-		if(youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) < 0) {
+		if (youngestPacketStarted != null && packet.compareTo(youngestPacketStarted) < 0) {
 			manager.dropPacket(packet);
 		} else {
 			received.add(packet);
 
-			//If this packet is the oldest one, then it might be possible to send it.
+			// If this packet is the oldest one, then it might be possible to send it.
 			if(received.element().equals(packet)) {
 				checkProcessing();
 			}
@@ -123,17 +116,17 @@ class PacketTypeQueue {
 	 * finished processing.
 	 */
 	private void checkProcessing() {
-		if(received.isEmpty()) {
+		if (received.isEmpty()) {
 			return;
 		}
 
 		SequencedPacket oldestPacket = received.element();
 
-		for(PacketTypeQueue queue : cannotBeOvertaken) {
+		for (PacketTypeQueue queue : cannotBeOvertaken) {
 			SequencedPacket otherPacket = queue.oldestPacketNotDone();
 
 			//If the other packet should be sent before this one, we cannot send.
-			if(otherPacket != null && otherPacket.compareTo(oldestPacket) < 0) {
+			if (otherPacket != null && otherPacket.compareTo(oldestPacket) < 0) {
 				return;
 			}
 		}
@@ -143,10 +136,10 @@ class PacketTypeQueue {
 		processing.add(oldestPacket);
 		received.remove();
 
-		if(manager.trim() == null || manager.trim() - oldestPacket.sequenceNumber() < 0) {
+		if (manager.trim() == null || manager.trim() - oldestPacket.sequenceNumber() < 0) {
 			//Notify the other queues of the packet we just sent.
-			for(PacketTypeQueue queue : cannotBeOvertaken) {
-				if(queue.youngestPacketStarted == null || queue.youngestPacketStarted.compareTo(oldestPacket) < 0) {
+			for (PacketTypeQueue queue : cannotBeOvertaken) {
+				if (queue.youngestPacketStarted == null || queue.youngestPacketStarted.compareTo(oldestPacket) < 0) {
 					queue.youngestPacketStarted = oldestPacket;
 				}
 			}
@@ -159,20 +152,20 @@ class PacketTypeQueue {
 	private SequencedPacket oldestPacketNotDone() {
 		SequencedPacket oldest = null;
 
-		if(!preReceive.isEmpty()) {
+		if (!preReceive.isEmpty()) {
 			oldest = preReceive.first();
 		}
 
-		if(!processing.isEmpty()) {
+		if (!processing.isEmpty()) {
 			var possibleOldest = processing.first();
 
-			if(oldest == null || possibleOldest.compareTo(oldest) < 0) {
+			if (oldest == null || possibleOldest.compareTo(oldest) < 0) {
 				oldest = possibleOldest;
 			}
-		} else if(!received.isEmpty()) {
+		} else if (!received.isEmpty()) {
 			var possibleOldest = received.element();
 
-			if(oldest == null || possibleOldest.compareTo(oldest) < 0) {
+			if (oldest == null || possibleOldest.compareTo(oldest) < 0) {
 				oldest = possibleOldest;
 			}
 		}
@@ -184,11 +177,11 @@ class PacketTypeQueue {
 	 * Notifies this queue that the listed packet has finished executing.
 	 **/
 	void notifyExecutionFinished(SequencedPacket packet) {
-		//Move this packet to DONE, also check any of the packet types that may not overtake this one.
+		// Move this packet to DONE, also check any of the packet types that may not overtake this one.
 
 		processing.remove(packet);
 
-		for(PacketTypeQueue queue : cannotOvertake) {
+		for (PacketTypeQueue queue : cannotOvertake) {
 			queue.checkProcessing();
 		}
 	}
@@ -197,8 +190,8 @@ class PacketTypeQueue {
 	 * This method should be called when it is guaranteed that there will be no packets older than the given packet received.
 	 */
 	void trim(int trim) {
-		//If the youngestPacketStarted is older than, or equal to the trim, discard it.
-		//We subtract here to cause overflow if needed, it is intended, as without it it would not follow the correct contract for sequence numbers.
+		// If the youngestPacketStarted is older than, or equal to the trim, discard it.
+		// We subtract here to cause overflow if needed, it is intended, as without it it would not follow the correct contract for sequence numbers.
 		if(youngestPacketStarted != null && youngestPacketStarted.sequenceNumber() - trim <= 0) {
 			youngestPacketStarted = null;
 		}
@@ -208,7 +201,7 @@ class PacketTypeQueue {
 	SequencedPacket oldestPacket() {
 		var oldest = oldestPacketNotDone();
 
-		if(oldest == null || (youngestPacketStarted != null && youngestPacketStarted.compareTo(oldest) < 0)) {
+		if (oldest == null || (youngestPacketStarted != null && youngestPacketStarted.compareTo(oldest) < 0)) {
 			oldest = youngestPacketStarted;
 		}
 

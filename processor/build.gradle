@@ -1,8 +1,12 @@
+plugins {
+	id 'java-library'
+}
+
 dependencies {
 	implementation project(':annotation')
-	implementation group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.0'
+	implementation group: 'org.apache.velocity', name: 'velocity-engine-core', version: '2.3'
 	
-	runtimeOnly group: 'org.slf4j', name: 'slf4j-nop', version: '1.7.25'
+	runtimeOnly group: 'brownshome', name: 'logging-slf4j', version: '1.0.0'
 }
 
 task copyToLib(type: Copy) {
