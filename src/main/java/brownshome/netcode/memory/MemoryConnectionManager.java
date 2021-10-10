@@ -3,14 +3,10 @@ package brownshome.netcode.memory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import brownshome.netcode.ConnectionManager;
-import brownshome.netcode.Schema;
+import brownshome.netcode.*;
 
 /**
  * This implements a connection that forms a direct message passing service between connections in the same process.
@@ -97,6 +93,11 @@ public class MemoryConnectionManager implements ConnectionManager<MemoryConnecti
 				//Keep trying to exit.
 			}
 		}
+	}
+
+	@Override
+	public CompletableFuture<Void> closeAsync() {
+		return CompletableFuture.allOf(connections.values().stream().map(Connection::closeConnection).toArray(CompletableFuture[]::new));
 	}
 
 	@Override

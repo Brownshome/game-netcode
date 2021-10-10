@@ -1,14 +1,18 @@
 package brownshome.netcode;
 
 import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
+
+class LoggerContainer {
+	static final System.Logger LOGGER = System.getLogger(ConnectionManager.class.getModule().getName());
+}
 
 /**
  * This class handles the incoming connections and creates outgoing connections.
  * @author James Brown
  */
 public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRESS>> extends AutoCloseable {
-	/** 
+	/**
 	 * Gets a connection to an address.
 	 * @return A connection object. This connection may not have been connected.
 	 **/
@@ -35,6 +39,8 @@ public interface ConnectionManager<ADDRESS, CONNECTION extends Connection<ADDRES
 	 */
 	@Override
 	void close();
+
+	CompletableFuture<Void> closeAsync();
 
 	/**
 	 * Gets the address of this connection manager. This is the address that other clients should connect to if they want

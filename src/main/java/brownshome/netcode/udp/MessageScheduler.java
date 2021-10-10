@@ -169,28 +169,30 @@ final class MessageScheduler {
 
 		// While there is bandwidth left, produce data-packets and send them
 
-		while(!sortedPackets.isEmpty()) {
+		while (!sortedPackets.isEmpty()) {
 			var mostImportantPacket = sortedPackets.first();
 
 			if (mostImportantPacket.score() < SCORE_CUTTOFF) {
 				break;
 			}
 
-			ConstructedDataPacket toSend;
-
 			if (mostImportantPacket.containingPacket() != null && mostImportantPacket.containingPacket().dataBuffer.remaining() <= bytesToSend) {
-				toSend = mostImportantPacket.containingPacket();
+				sortedPackets.pollFirst();
+				sendConstructedDataPacket(mostImportantPacket.containingPacket());
 			} else {
 				int length = (int) Math.min(MessageScheduler.MTU, bytesToSend);
-				toSend = new ConstructedDataPacket(nextSequenceNumber, connection, length);
+				ConstructedDataPacket toSend = new ConstructedDataPacket(nextSequenceNumber, connection, length);
 
-				for (var possibleChild : sortedPackets) {
-					if(possibleChild.containingPacket() != null) {
+				for (var it = sortedPackets.iterator(); it.hasNext(); ) {
+					ScheduledPacket possibleChild = it.next();
+					if (possibleChild.containingPacket() != null) {
+						// This packet already has a constructed packet it is a part of, don't add it to another
 						continue;
 					}
 
 					if (toSend.dataBuffer.remaining() >= possibleChild.size()) {
 						toSend.addPacket(possibleChild);
+						it.remove();
 					}
 				}
 
@@ -203,10 +205,8 @@ final class MessageScheduler {
 				}
 
 				nextSequenceNumber++;
+				sendConstructedDataPacket(toSend);
 			}
-
-			sortedPackets.removeAll(toSend.children());
-			sendConstructedDataPacket(toSend);
 		}
 	}
 
@@ -289,6 +289,8 @@ final class MessageScheduler {
 
 	/** This is the chance that a packet sent at time X will eventually arrive, given that an ack has not been received. */
 	double chanceOfPacketArriving(Instant timeSent) {
+		assert timeSent != null : "This method is only valid if the packet has been sent";
+
 		Duration largerThanRTT = rttEstimate.multipliedBy(2);
 
 		if(timeSent.plus(largerThanRTT).compareTo(now) < 0) {

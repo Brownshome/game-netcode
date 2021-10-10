@@ -12,8 +12,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import brownshome.netcode.ConnectionManager;
-import brownshome.netcode.Schema;
+import brownshome.netcode.*;
 
 /** Represents a UDP connection that is bound to a single port on the machine. */
 public class UDPConnectionManager implements ConnectionManager<InetSocketAddress, UDPConnection> {
@@ -165,6 +164,20 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 			submissionThread.shutdown();
 			submissionThread.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 		} catch (InterruptedException e) { /* Stop waiting */ }
+	}
+
+	@Override
+	public CompletableFuture<Void> closeAsync() {
+		return CompletableFuture.allOf(connections.values().stream().map(Connection::closeConnection).toArray(CompletableFuture[]::new)).whenComplete((unused, throwable) -> {
+			LOGGER.log(System.Logger.Level.INFO, "Shutting down submission thread for ''{0}''", address());
+			submissionThread.shutdown();
+		}).thenRunAsync(() -> {
+			try {
+				submissionThread.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+			} catch (InterruptedException e) {
+				throw new IllegalStateException(e);
+			}
+		});
 	}
 
 	DatagramChannel channel() {
