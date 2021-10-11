@@ -126,6 +126,10 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 			for (Packet packet : savedQueue) {
 				sendImpl(packet);
 			}
+		} else {
+			// We are already connected. Make sure to flush old packets before re-negotiating
+			preConnectQueue = new ArrayList<>();
+			return flush().thenCompose(v -> connect(schemas));
 		}
 
 		return CompletableFuture.completedFuture(null);

@@ -9,7 +9,7 @@ import brownshome.netcode.util.ConnectionFlusher;
 
 public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> {
 	public enum State {
-		/** The connection is not yet connected. Packets will be sent when the connection is ready. */
+		/** The connection is not connected. Packets will be sent when the connection is ready. */
 		NO_CONNECTION,
 
 		/** The connection is negotiating a protocol. Packets will be sent when this protocol is negotiated. */
@@ -90,21 +90,24 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		// The read lock must contain the sending line, as otherwise there might be a packet in the process of sending
 		// when the state is changed from READY to NEGOTIATING
 		try { stateLock.readLock().lock();
-			if (state == State.CLOSED) {
-				return CompletableFuture.failedFuture(new NetworkException("The connection is closed.", this));
-			}
+			return switch (state) {
+				case CLOSED -> CompletableFuture.failedFuture(new NetworkException("The connection is closed.", this));
 
-			if (state == State.READY) {
-				CompletableFuture<Void> future = sendWithoutStateChecks(packet);
-				flusher.submitFuture(future);
-				return future;
-			} else {
-				CompletableFuture<Void> future = new CompletableFuture<>();
-				QueuedPacket queuedPacket = new QueuedPacket(packet, future);
-				sendBuffer.add(queuedPacket);
-				flusher.submitFuture(future);
-				return future;
-			}
+				case READY -> {
+					var future = sendWithoutStateChecks(packet);
+					flusher.submitFuture(future);
+					yield future;
+				}
+
+				case NO_CONNECTION, NEGOTIATING -> {
+					var future = new CompletableFuture<Void>();
+
+					sendBuffer.add(new QueuedPacket(packet, future));
+					flusher.submitFuture(future);
+
+					yield future;
+				}
+			};
 		} finally { stateLock.readLock().unlock(); }
 	}
 
@@ -128,9 +131,9 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 	public CompletableFuture<Void> connect(List<Schema> schemas) {
 		try { stateLock.writeLock().lock();
 			return switch (state) {
-				case CLOSED -> CompletableFuture.failedFuture(new NetworkException("The connection is closed.", this));
+				case CLOSED -> connectFuture = CompletableFuture.failedFuture(new NetworkException("The connection is closed.", this));
 
-				case NO_CONNECTION, READY -> {
+				case NO_CONNECTION -> {
 					state = State.NEGOTIATING;
 
 					// Start waiting for the confirmProtocolPacket
@@ -142,11 +145,24 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 					// This is needed to detect sending failures. If we just wait for the received then if the negotiate-packet
 					// fails this future locks up. The future still may lock up if the confirmation fails, but this is a little
 					// bit more friendly.
-					connectFuture = CompletableFuture.allOf(negotiateSentPacket, confirmReceivedFuture);
-					yield connectFuture;
+					yield connectFuture = CompletableFuture.allOf(negotiateSentPacket, confirmReceivedFuture);
+				}
+
+				case READY -> {
+					state = State.NEGOTIATING;
+
+					// When we have flushed all packets we can safely re-negotiate the connection
+					yield connectFuture = flush().thenCompose(v -> {
+						try { stateLock.writeLock().lock();
+							state = State.NO_CONNECTION;
+							return connect(schemas);
+						} finally { stateLock.writeLock().unlock(); }
+					});
 				}
 
 				case NEGOTIATING -> {
+					assert connectFuture != null;
+
 					// Wait for the old negotiation to complete
 					connectFuture = connectFuture.thenCompose(v -> connect(schemas));
 					yield connectFuture;
@@ -157,36 +173,30 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 	protected final CompletableFuture<Void> closeConnection(boolean wasClosedByOtherEnd) {
 		try { stateLock.writeLock().lock();
-			switch (state) {
-				case NO_CONNECTION:
+			return switch (state) {
+				case NO_CONNECTION -> {
 					state = State.CLOSED;
 
 					failAllOfThePackets(new NetworkException("The connection was closed prior to connecting.", this));
-
-					closeFuture = CompletableFuture.completedFuture(null);
 					postCloseActions();
 
-					return closeFuture;
-				case READY:
-				case NEGOTIATING:
+					yield closeFuture = CompletableFuture.completedFuture(null);
+				}
+
+				case READY, NEGOTIATING -> {
 					closeFuture = closeFuture(wasClosedByOtherEnd);
 
 					state = State.CLOSED;
+					yield closeFuture = closeFuture.thenRun(this::postCloseActions);
+				}
 
-					closeFuture.thenRun(this::postCloseActions);
-
-					return closeFuture;
-				case CLOSED:
-					// Take no action
-					return closeFuture;
-				default:
-					throw new IllegalStateException("State cannot be null");
-			}
+				case CLOSED -> closeFuture;
+			};
 		} finally { stateLock.writeLock().unlock(); }
 	}
 
 	/**
-	 * This method is called by the closing process to return a future that represents and waits that need to occur before the closing process can finish.
+	 * This method is called by the closing process to return a future that represents any waits that need to occur before the closing process can finish.
 	 * @param closedByOtherEnd whether the other end of the connection initiated this close
 	 * @return a future to wait on
 	 */
@@ -243,8 +253,6 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 					// Send all of the packets
 					sendAllOfThePackets();
 			}
-
-			state = State.READY;
 		} finally { stateLock.writeLock().unlock(); }
 	}
 
