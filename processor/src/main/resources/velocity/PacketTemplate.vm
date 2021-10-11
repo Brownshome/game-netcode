@@ -17,9 +17,18 @@ public final class ${packet.name()}Packet extends Packet {
 #set( $converter = $parameter.converter() )
 	public final $parameter.type() ${parameter.dataName()};
 #if( $converter.type() )
-	private final $converter.type() ${parameter.converterName()};
+	private static final $converter.type() ${parameter.converterName()};
 #end
 #end
+
+	static {
+#foreach ( $parameter in $packet.parameters() )
+#set( $converter = $parameter.converter() )
+#if( $converter.type() )
+		${parameter.converterName()} = ${converter.construct()};
+#end
+#end
+	}
 
 	private final NetworkObjectSize size;
 	
@@ -28,11 +37,7 @@ public final class ${packet.name()}Packet extends Packet {
 				new int[] { #foreach( $id in $packet.calculatedOrderingIDs($schema) )${id}#if( ! $foreach.last ), #{end}#{end} });
 
 #foreach ( $parameter in $packet.parameters() )
-#set( $converter = $parameter.converter() )
 		this.${parameter.dataName()} = ${parameter.dataName()};
-#if( $converter.type() )
-		this.${parameter.converterName()} = ${converter.construct()};
-#end
 #end
 
 #foreach ( $parameter in $packet.parameters() )

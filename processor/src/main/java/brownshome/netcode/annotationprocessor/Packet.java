@@ -173,7 +173,7 @@ public final class Packet {
 
 			ConverterExpression subExpression = findConverter(genericType, baseConverter, env);
 
-			return new ListConverter(subExpression);
+			return new ListConverter(subExpression, genericType.toString());
 		}
 
 		if(types.isAssignable(parameter, networkable)) {
@@ -181,7 +181,7 @@ public final class Packet {
 		}
 
 		if(baseConverter == null) {
-			throw new PacketCompileException("No converter found for " + parameter.toString());
+			throw new PacketCompileException("No converter found for " + parameter);
 		}
 
 		return new CustomConverter(baseConverter.toString());
@@ -279,8 +279,18 @@ public final class Packet {
 		return priority;
 	}
 
-	public int[] calculatedOrderingIDs(Schema schema) {
-		return Arrays.stream(orderedBy).mapToInt(schema::idForPacket).toArray();
+	public int[] calculatedOrderingIDs(Schema schema) throws PacketCompileException {
+		try {
+			int[] result = new int[orderedBy.length];
+
+			for (int i = 0; i < result.length; i++) {
+				result[i] = schema.idForPacket(orderedBy[i]);
+			}
+
+			return result;
+		} catch (IllegalArgumentException iae) {
+			throw new PacketCompileException(iae.getMessage());
+		}
 	}
 
 	public boolean isReliable() {

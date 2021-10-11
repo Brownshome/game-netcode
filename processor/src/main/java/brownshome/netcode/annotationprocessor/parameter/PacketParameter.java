@@ -17,28 +17,28 @@ public class PacketParameter {
 		this.name = name;
 		this.converter = converter;
 	}
-	
-	public ConverterExpression converter() {
+
+	public final ConverterExpression converter() {
 		return converter;
 	}
 	
-	public String type() {
+	public final String type() {
 		return type;
 	}
 
 	public String dataName() {
-		return name + "Data";
+		return name() + "Data";
 	}
 	
 	public String converterName() {
-		return name + "Converter";
+		return name() + "Converter";
 	}
 
 	public String sizeName() {
-		return name + "Size";
+		return name() + "Size";
 	}
 	
-	protected String name() {
+	protected final String name() {
 		return name;
 	}
 }

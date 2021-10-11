@@ -24,7 +24,7 @@ public class CustomConverter implements ConverterExpression {
 
 	@Override
 	public String read(PacketParameter parameter, String bufferName) {
-		return String.format("new %s().read(%s)", converterClass, bufferName);
+		return String.format("%s.read(%s)", parameter.converterName(), bufferName);
 	}
 
 	@Override
