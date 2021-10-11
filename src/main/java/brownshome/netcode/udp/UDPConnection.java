@@ -176,7 +176,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	}
 
 	@Override
-	public CompletableFuture<Void> connect() {
+	public CompletableFuture<Void> connect(List<Schema> schemas) {
 		// We sent the connect-packet until we get a response.
 
 		// As the message resend system is not yet useful as there are no acks, we pick a sensible resend delay.
@@ -188,34 +188,36 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 		packet.write(buffer);
 		buffer.flip();
 
-		udpConnectionResponse = new CompletableFuture<>();
+		if (udpConnectionResponse == null) {
+			udpConnectionResponse = new CompletableFuture<>();
 
-		ScheduledFuture<?> scheduledFuture = manager.submissionThread().scheduleAtFixedRate(new Runnable() {
-			int attempts = 0;
+			ScheduledFuture<?> scheduledFuture = manager.submissionThread().scheduleAtFixedRate(new Runnable() {
+				int attempts = 0;
 
-			@Override
-			public void run() {
-				try {
-					manager.channel().send(buffer.duplicate(), address());
-					flagPacketSend(packet);
-				} catch(IOException e) {
-					udpConnectionResponse.completeExceptionally(e);
+				@Override
+				public void run() {
+					try {
+						manager.channel().send(buffer.duplicate(), address());
+						flagPacketSend(packet);
+					} catch(IOException e) {
+						udpConnectionResponse.completeExceptionally(e);
+					}
+
+					attempts++;
+
+					// attempts > msToWait / CONNECT_RESEND_DELAY
+					long msToWait = 10_000;
+					if (attempts > msToWait / CONNECT_RESEND_DELAY_MS) {
+						udpConnectionResponse.completeExceptionally(new TimeoutException("Connection to '" + address() + "' failed to reply in " + msToWait + "ms."));
+					}
 				}
+			}, 0, CONNECT_RESEND_DELAY_MS, TimeUnit.MILLISECONDS);
 
-				attempts++;
+			// This also triggers on cancels and exceptional failures
+			udpConnectionResponse.whenComplete((v, t) -> scheduledFuture.cancel(false));
+		}
 
-				// attempts > msToWait / CONNECT_RESEND_DELAY
-				long msToWait = 10_000;
-				if(attempts > msToWait / CONNECT_RESEND_DELAY_MS) {
-					udpConnectionResponse.completeExceptionally(new TimeoutException("Connection to '" + address() + "' failed to reply in " + msToWait + "ms."));
-				}
-			}
-		}, 0, CONNECT_RESEND_DELAY_MS, TimeUnit.MILLISECONDS);
-
-		// This also triggers on cancels and exceptional failures
-		udpConnectionResponse.whenComplete((v, t) -> scheduledFuture.cancel(false));
-
-		return udpConnectionResponse.thenCompose(v -> super.connect());
+		return udpConnectionResponse.thenCompose(v -> super.connect(schemas));
 	}
 
 	@Override

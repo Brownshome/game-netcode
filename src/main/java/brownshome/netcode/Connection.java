@@ -1,5 +1,6 @@
 package brownshome.netcode;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -39,14 +40,22 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	/** Gets that address object for this connection. */
 	ADDRESS address();
 
-	/** Attempts to connect to the host at the other end. This method has no effect if the connection has already been
-	 * connected.
+	/**
+	 * Attempts to negotiate a connection to the host at the other end.
 	 * @return A future that represents when a connection has been made successfully.
 	 **/
-	CompletableFuture<Void> connect();
+	default CompletableFuture<Void> connect() {
+		return connect(connectionManager().schemas());
+	}
 
 	default void connectSync() throws InterruptedException, NetworkException {
 		awaitFuture(connect());
+	}
+
+	CompletableFuture<Void> connect(List<Schema> schemas);
+
+	default void connectSync(List<Schema> schemas) throws InterruptedException, NetworkException {
+		awaitFuture(connect(schemas));
 	}
 
 	/**

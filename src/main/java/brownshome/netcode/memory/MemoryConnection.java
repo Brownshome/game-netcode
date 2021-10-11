@@ -22,7 +22,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 	private final MemoryConnectionManager other;
 	private final MemoryConnectionManager manager;
 
-	private final Protocol protocol;
+	private Protocol protocol;
 	private final ConnectionFlusher flusher;
 
 	/** This queue is used to store packets before the connection is connected, and they can be executed. It is null when
@@ -43,10 +43,7 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 
 		orderingManager = new OrderingManager(this::execute, this::drop);
 
-		//The order of these operands does not matter.
-		Protocol.ProtocolNegotiation negotiationResult = Protocol.negotiateProtocol(other.schemas(), manager.schemas());
-
-		this.protocol = negotiationResult.protocol();
+		this.protocol = Protocol.baseProtocol();
 		this.flusher = new ConnectionFlusher();
 	}
 
@@ -113,12 +110,16 @@ public class MemoryConnection implements Connection<MemoryConnectionManager> {
 	}
 
 	@Override
-	public synchronized CompletableFuture<Void> connect() {
+	public synchronized CompletableFuture<Void> connect(List<Schema> schemas) {
 		if (closingFuture != null) {
 			return CompletableFuture.failedFuture(new NetworkException("This connection is closed", this));
 		}
 
 		if (preConnectQueue != null) {
+			//The order of these operands does not matter.
+			Protocol.ProtocolNegotiation negotiationResult = Protocol.negotiateProtocol(other.schemas(), schemas);
+			protocol = negotiationResult.protocol();
+
 			var savedQueue = preConnectQueue;
 			preConnectQueue = null;
 
