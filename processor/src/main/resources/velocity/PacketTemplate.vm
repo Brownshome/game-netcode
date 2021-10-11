@@ -11,7 +11,7 @@ import brownshome.netcode.Packet;
 import brownshome.netcode.NetworkObjectSize;
 
 public final class ${packet.name()}Packet extends Packet {
-	System.Logger LOGGER = System.getLogger(${packet.name()}Packet.class.getModule().getName());
+	System.Logger LOGGER = System.getLogger(${packet.name()}Packet.class.getModule().toString());
 
 #foreach ( $parameter in $packet.parameters() )
 #set( $converter = $parameter.converter() )

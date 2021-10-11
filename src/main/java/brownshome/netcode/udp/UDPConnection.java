@@ -244,13 +244,9 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	/* *********** OVERRIDE CLOSE METHOD ************* */
 
-	/**
-	 * This method is called by the closing process to return a future that represents and waits that need to occur before the closing process can finish.
-	 * These waits occur at the same time as the closing packet send.
-	 */
 	@Override
-	protected CompletableFuture<Void> localCloseWaits() {
-		return CompletableFuture.allOf(super.localCloseWaits(), messageScheduler.closeMessageSchedulerFuture());
+	protected CompletableFuture<Void> closeFuture(boolean closedByOtherEnd) {
+		return CompletableFuture.allOf(super.closeFuture(closedByOtherEnd), messageScheduler.closeMessageSchedulerFuture());
 	}
 
 	/* *********** CALLBACKS FROM PACKET RECEIVE *********** */

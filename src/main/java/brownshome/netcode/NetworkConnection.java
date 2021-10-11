@@ -90,11 +90,11 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		// The read lock must contain the sending line, as otherwise there might be a packet in the process of sending
 		// when the state is changed from READY to NEGOTIATING
 		try { stateLock.readLock().lock();
-			if(state == State.CLOSED) {
+			if (state == State.CLOSED) {
 				return CompletableFuture.failedFuture(new NetworkException("The connection is closed.", this));
 			}
 
-			if(state == State.READY) {
+			if (state == State.READY) {
 				CompletableFuture<Void> future = sendWithoutStateChecks(packet);
 				flusher.submitFuture(future);
 				return future;
@@ -130,7 +130,7 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 		try { stateLock.writeLock().lock();
 
-			if(state == State.NO_CONNECTION) {
+			if (state == State.NO_CONNECTION) {
 				state = State.NEGOTIATING;
 
 				// Start waiting for the confirmProtocolPacket
@@ -150,9 +150,9 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		return connectFuture;
 	}
 
-	protected final CompletableFuture<Void> closeConnection(boolean sendPacket) {
+	protected final CompletableFuture<Void> closeConnection(boolean wasClosedByOtherEnd) {
 		try { stateLock.writeLock().lock();
-			switch(state) {
+			switch (state) {
 				case NO_CONNECTION:
 					// Connect was not called, change the state to CLOSED, any packets that were queued up, will never be
 					// sent, as connect can never be called. So terminate them all.
@@ -162,24 +162,18 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 					state = State.CLOSED;
 
-					for(QueuedPacket packet : sendBuffer) {
-						packet.future.completeExceptionally(new NetworkException("The connection was closed prior to connecting.", this));
-					}
+					failAllOfThePackets(new NetworkException("The connection was closed prior to connecting.", this));
 
-					closeFuture = localCloseWaits();
-
+					closeFuture = CompletableFuture.completedFuture(null);
 					postCloseActions();
 
 					return closeFuture;
 				case READY:
 				case NEGOTIATING:
-					closeFuture = sendPacket
-							? CompletableFuture.allOf(send(new CloseConnectionPacket()), localCloseWaits())
-							: localCloseWaits();
+					closeFuture = closeFuture(wasClosedByOtherEnd);
 
 					state = State.CLOSED;
 
-					// Shut down the flusher
 					closeFuture.thenRun(this::postCloseActions);
 
 					return closeFuture;
@@ -194,10 +188,18 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 	/**
 	 * This method is called by the closing process to return a future that represents and waits that need to occur before the closing process can finish.
-	 * These waits occur at the same time as the closing packet send.
+	 * @param closedByOtherEnd whether the other end of the connection initiated this close
+	 * @return a future to wait on
 	 */
-	protected CompletableFuture<Void> localCloseWaits() {
-		return flush();
+	protected CompletableFuture<Void> closeFuture(boolean closedByOtherEnd) {
+		if (closedByOtherEnd) {
+			// At this point any packets in the send-buffer won't be sent. Fail them all
+			failAllOfThePackets(new NetworkException("The other end of the connection was closed before clearing the send-buffer", this));
+			return CompletableFuture.completedFuture(null);
+		} else {
+			// Flush the packets in the send-buffer, then send the close packet
+			return CompletableFuture.allOf(flush(), send(new CloseConnectionPacket()));
+		}
 	}
 
 	/**
@@ -209,7 +211,7 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 	@Override
 	public final CompletableFuture<Void> closeConnection() {
-		return closeConnection(true);
+		return closeConnection(false);
 	}
 
 	@Override
@@ -251,6 +253,16 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		for (var queued : sendBuffer) {
 			sendWithoutStateChecks(queued.packet).thenAccept(queued.future::complete);
 		}
+
+		sendBuffer.clear();
+	}
+
+	private void failAllOfThePackets(NetworkException exception) {
+		for (var queued : sendBuffer) {
+			queued.future.completeExceptionally(exception);
+		}
+
+		sendBuffer.clear();
 	}
 
 	protected void receiveNegotiatePacket(Protocol protocol) {
@@ -270,6 +282,6 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 
 	/** This method closes the connection without sending a packet to the other connection. */
 	protected void receiveClosePacket() {
-		closeConnection(false);
+		closeConnection(true);
 	}
 }

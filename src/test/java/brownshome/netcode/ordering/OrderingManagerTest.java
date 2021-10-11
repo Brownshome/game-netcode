@@ -30,7 +30,7 @@ class OrderingManagerTest {
 		//These sequence numbers are too largely spaced out to have a valid ordering
 		SequencedPacket a = new SequencedPacket(new SimplePacket("a"), Integer.MAX_VALUE / 3 * 2);
 		SequencedPacket b = new SequencedPacket(new SimplePacket("b"), 0);
-		SequencedPacket c = new SequencedPacket(new SimplePacket("b"), Integer.MIN_VALUE / 3 * 2);
+		SequencedPacket c = new SequencedPacket(new SimplePacket("c"), Integer.MIN_VALUE / 3 * 2);
 
 		manager.deliverPacket(a);
 		manager.deliverPacket(b);

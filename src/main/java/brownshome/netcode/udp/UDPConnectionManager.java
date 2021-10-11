@@ -169,6 +169,7 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 	@Override
 	public CompletableFuture<Void> closeAsync() {
 		return CompletableFuture.allOf(connections.values().stream().map(Connection::closeConnection).toArray(CompletableFuture[]::new)).whenComplete((unused, throwable) -> {
+			listenerThread.interrupt();
 			LOGGER.log(System.Logger.Level.INFO, "Shutting down submission thread for ''{0}''", address());
 			submissionThread.shutdown();
 		}).thenRunAsync(() -> {
