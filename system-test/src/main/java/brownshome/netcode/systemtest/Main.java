@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import browngu.logging.Logger;
+import browngu.logging.Output;
 import brownshome.netcode.*;
 import brownshome.netcode.systemtest.packets.TestSchema;
 import brownshome.netcode.udp.UDPConnectionManager;
@@ -13,7 +15,9 @@ import brownshome.netcode.udp.UDPSchema;
 
 public class Main {
 	public static void main(String[] args) throws InterruptedException, IOException {
-		List<Schema> protocol = List.of(new BaseSchema(), new UDPSchema(), new TestSchema());
+		Logger.logger().setLoggingOutputs(new Output(System.out, System.Logger.Level.DEBUG.getSeverity()));
+
+		List<Schema> protocol = List.of(new BaseSchema(), new TestSchema());
 
 		UDPConnectionManager clientConnectionManager = new UDPConnectionManager(protocol);
 		UDPConnectionManager serverConnectionManager = new UDPConnectionManager(protocol, 65535);

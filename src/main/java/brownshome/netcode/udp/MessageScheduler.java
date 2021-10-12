@@ -228,13 +228,8 @@ final class MessageScheduler {
 				UDPPackets.hashDataPacket(connection.remoteSalt(), ack.largestAck, ack.field, toSend.sequenceNumber, toSend.dataBuffer.duplicate()),
 				ack.largestAck, ack.field, toSend.sequenceNumber, toSend.dataBuffer.duplicate());
 
-		sendDirectlyToChannel(packet);
-	}
-
-	/** Dispatches a packet directly to the channel */
-	private void sendDirectlyToChannel(Packet packet) {
 		ByteBuffer aggregateBuffer = ByteBuffer.allocate(connection.calculateEncodedLength(packet));
-		connection.encode(aggregateBuffer, packet);
+		connection.encodeUDP(aggregateBuffer, packet);
 		aggregateBuffer.flip();
 
 		try {

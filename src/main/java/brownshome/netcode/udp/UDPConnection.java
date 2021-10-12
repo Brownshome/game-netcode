@@ -14,6 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	/*
@@ -32,6 +33,8 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private static final long CONNECT_RESEND_DELAY_MS = 100;
 	private static final int FRAGMENT_SIZE = 1024;
 
+	private static final Protocol UDP_LAYER_PROTOCOL = new Protocol(List.of(new UDPSchema()));
+
 	private final UDPConnectionManager manager;
 
 	/** The salt used by this connection object */
@@ -43,7 +46,8 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	private final MessageScheduler messageScheduler;
 
-	private CompletableFuture<Void> udpConnectionResponse;
+	private final CompletableFuture<Void> connectedFuture = new CompletableFuture<>();
+	private final AtomicBoolean startedConnection = new AtomicBoolean(false);
 
 	/** Represents a set of fragments that are being received. */
 	private final static class FragmentSet {
@@ -181,15 +185,12 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 		// As the message resend system is not yet useful as there are no acks, we pick a sensible resend delay.
 
-		ConnectPacket packet = new ConnectPacket(localSalt, null);
+		if (!startedConnection.getAndSet(true) && !connectedFuture.isDone()) {
+			ConnectPacket packet = new ConnectPacket(localSalt, null);
 
-		ByteBuffer buffer = ByteBuffer.allocate(packet.size() + Integer.BYTES);
-		buffer.putInt(protocol().computePacketID(packet));
-		packet.write(buffer);
-		buffer.flip();
-
-		if (udpConnectionResponse == null) {
-			udpConnectionResponse = new CompletableFuture<>();
+			ByteBuffer buffer = ByteBuffer.allocate(calculateEncodedLength(packet));
+			encodeUDP(buffer, packet);
+			buffer.flip();
 
 			ScheduledFuture<?> scheduledFuture = manager.submissionThread().scheduleAtFixedRate(new Runnable() {
 				int attempts = 0;
@@ -201,7 +202,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 							manager.channel().send(buffer.duplicate(), address());
 							flagPacketSend(packet);
 						} catch(IOException e) {
-							udpConnectionResponse.completeExceptionally(e);
+							connectedFuture.completeExceptionally(e);
 						}
 
 						attempts++;
@@ -209,7 +210,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 						// attempts > msToWait / CONNECT_RESEND_DELAY
 						long msToWait = 10_000;
 						if (attempts > msToWait / CONNECT_RESEND_DELAY_MS) {
-							udpConnectionResponse.completeExceptionally(new TimeoutException("Connection to '" + address() + "' failed to reply in " + msToWait + "ms."));
+							connectedFuture.completeExceptionally(new TimeoutException("Connection to '" + address() + "' failed to reply in " + msToWait + "ms."));
 						}
 					} catch (Throwable t) {
 						LOGGER.log(System.Logger.Level.ERROR, "Uncaught exception in message scheduler", t);
@@ -218,10 +219,10 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 			}, 0, CONNECT_RESEND_DELAY_MS, TimeUnit.MILLISECONDS);
 
 			// This also triggers on cancels and exceptional failures
-			udpConnectionResponse.whenComplete((v, t) -> scheduledFuture.cancel(false));
+			connectedFuture.whenComplete((v, t) -> scheduledFuture.cancel(false));
 		}
 
-		return udpConnectionResponse.thenCompose(v -> super.connect(schemas));
+		return connectedFuture.thenCompose(v -> super.connect(schemas));
 	}
 
 	@Override
@@ -244,7 +245,16 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	}
 
 	void encode(ByteBuffer buffer, Packet packet) {
+		assert !packet.schemaName().equals(UDPSchema.FULL_NAME);
+
 		buffer.putInt(protocol().computePacketID(packet));
+		packet.write(buffer);
+	}
+
+	void encodeUDP(ByteBuffer buffer, Packet packet) {
+		assert packet.schemaName().equals(UDPSchema.FULL_NAME);
+
+		buffer.putInt(UDP_LAYER_PROTOCOL.computePacketID(packet));
 		packet.write(buffer);
 	}
 
@@ -258,31 +268,38 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	/* *********** CALLBACKS FROM PACKET RECEIVE *********** */
 
 	void receive(ByteBuffer buffer) {
-		Packet incoming = protocol().createPacket(buffer);
-
-		LOGGER.log(System.Logger.Level.DEBUG, () -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
+		Packet incoming = UDP_LAYER_PROTOCOL.createPacket(buffer);
+		if (!incoming.schemaName().equals(UDPSchema.FULL_NAME)) {
+			LOGGER.log(System.Logger.Level.ERROR, String.format("Remote address '%s' sent non-UDP packet '%s'", address(), incoming));
+		} else {
+			LOGGER.log(System.Logger.Level.DEBUG, () -> String.format("Remote address '%s' sent '%s'", address(), incoming));
+		}
 
 		manager.executeOn(() -> {
-			protocol().handle(this, incoming);
+			UDP_LAYER_PROTOCOL.handle(this, incoming);
 		}, incoming.handledBy());
 	}
 
 	void receiveConnectPacket(long clientSalt) {
-		remoteSalt = clientSalt;
+		Packet packet;
+		if (!startedConnection.getAndSet(true)) {
+			connectedFuture.complete(null);
+			remoteSalt = clientSalt;
 
-		// TODO create the connecting state machine, with proper rejection of connection packets received at odd times.
+			int hash = UDPPackets.hashChallengePacket(remoteSalt, localSalt());
+			packet = new ChallengePacket(hash, localSalt());
+		} else {
+			int hash = UDPPackets.hashConnectionDeniedPacket(clientSalt);
+			packet = new ConnectionDeniedPacket(hash);
+		}
 
-		int hash = UDPPackets.hashChallengePacket(remoteSalt, localSalt());
-
-		ChallengePacket challengePacket = new ChallengePacket(hash, localSalt());
-		ByteBuffer buffer = ByteBuffer.allocate(challengePacket.size() + Integer.BYTES);
-		buffer.putInt(protocol().computePacketID(challengePacket));
-		challengePacket.write(buffer);
+		ByteBuffer buffer = ByteBuffer.allocate(calculateEncodedLength(packet));
+		encodeUDP(buffer, packet);
 		buffer.flip();
 
 		try {
 			manager.channel().send(buffer, address());
-			flagPacketSend(challengePacket);
+			flagPacketSend(packet);
 		} catch (IOException io) {
 			throw new NetworkException("Unable to send challenge packet to " + address(), this);
 		}
@@ -301,12 +318,12 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	}
 
 	void connectionDenied() {
-		udpConnectionResponse.completeExceptionally(new NetworkException("The connection was denied", this));
+		connectedFuture.completeExceptionally(new NetworkException("The connection was denied", this));
 	}
 
 	void receiveChallengeSalt(long serverSalt) {
 		remoteSalt = serverSalt;
-		udpConnectionResponse.complete(null);
+		connectedFuture.complete(null);
 	}
 
 	private void receiveMessage(int packetNumber, int messageNumber, ByteBuffer data) {

@@ -77,11 +77,7 @@ final class UDPPackets {
 			throw new IllegalStateException("'ConnectionDenied' can only be received by a UDP connection", cce);
 		}
 
-		long salt = udpConnection.localSalt();
-
-		CRC32 crc = new CRC32();
-		update(crc, salt);
-		int digest = (int) crc.getValue();
+		int digest = hashConnectionDeniedPacket(udpConnection.localSalt());
 
 		if (hash != digest) {
 			// Ignore the packet, this is corrupt, or malicious
@@ -115,6 +111,12 @@ final class UDPPackets {
 		} else {
 			udpConnection.receiveChallengeSalt(serverSalt);
 		}
+	}
+
+	public static int hashConnectionDeniedPacket(long clientSalt) {
+		CRC32 crc = new CRC32();
+		update(crc, clientSalt);
+		return (int) crc.getValue();
 	}
 
 	/**
