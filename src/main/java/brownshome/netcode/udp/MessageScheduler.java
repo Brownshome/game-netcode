@@ -120,19 +120,23 @@ final class MessageScheduler {
 
 	/** This method is called every X time units to trigger the packet sending code. */
 	private synchronized void queuePackets() {
-		LOGGER.log(System.Logger.Level.TRACE, "Queueing packets to '" + connection.address() + "'");
+		try {
+			LOGGER.log(System.Logger.Level.TRACE, "Queueing packets to '" + connection.address() + "'");
 
-		now = Instant.now();
+			now = Instant.now();
 
-		// TODO blocking mechanics
+			// TODO blocking mechanics
 
-		// Calculate bandwidth
-		bytesToSend += (lastSendAttempt.until(now, ChronoUnit.NANOS) / 1e9) * bandwidthEstimate;
-		bytesToSend = Math.min(UDPConnectionManager.BUFFER_SIZE, bytesToSend);
+			// Calculate bandwidth
+			bytesToSend += (lastSendAttempt.until(now, ChronoUnit.NANOS) / 1e9) * bandwidthEstimate;
+			bytesToSend = Math.min(UDPConnectionManager.BUFFER_SIZE, bytesToSend);
 
-		assembleAndSendMessages();
+			assembleAndSendMessages();
 
-		lastSendAttempt = now;
+			lastSendAttempt = now;
+		} catch (Throwable t) {
+			LOGGER.log(System.Logger.Level.ERROR, "Uncaught exception in message scheduler", t);
+		}
 	}
 
 	/**

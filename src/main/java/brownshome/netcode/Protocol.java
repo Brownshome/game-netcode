@@ -21,7 +21,11 @@ public final class Protocol implements Networkable {
 
 	private record SchemaAllocation(int startID, Schema schema) { }
 
-	public record ProtocolNegotiation(Protocol protocol, Set<Schema> missingSchema) { }
+	public record ProtocolNegotiation(Protocol protocol, Set<Schema> missingSchema) {
+		public boolean succeeded() {
+			return missingSchema.isEmpty();
+		}
+	}
 
 	public static ProtocolNegotiation negotiateProtocol(List<Schema> requestedList, List<Schema> supportedList) {
 		Map<String, Schema> supportedSchemas = new HashMap<>();

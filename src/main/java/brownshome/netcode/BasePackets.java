@@ -14,34 +14,25 @@ final class BasePackets {
 	@DefinePacket(name = "NegotiateProtocol")
 	@MakeReliable
 	static void sendProtocolBack(@ConnectionParam Connection<?> connection, @UseConverter(Schema.SchemaConverter.class) List<Schema> schemas) {
-		assert connection instanceof NetworkConnection;
-
 		Protocol.ProtocolNegotiation negotiationResult = Protocol.negotiateProtocol(schemas, connection.connectionManager().schemas());
-		
-		connection.send(new ConfirmProtocolPacket(negotiationResult.protocol()));
-
-		((NetworkConnection<?>) connection).receiveNegotiatePacket(negotiationResult.protocol());
+		((NetworkConnection<?>) connection).receiveNegotiatePacket(negotiationResult);
 	}
 	
 	@DefinePacket(name = "NegotiationFailed")
 	@MakeReliable
 	static void negotiationFailed(@ConnectionParam Connection<?> connection, String reason) {
-		LOGGER.log(System.Logger.Level.ERROR, "Error negotiating schema with ''{0}'': {1}", connection.address(), reason);
+		((NetworkConnection<?>) connection).receiveNegotiationFailedPacket(reason);
 	}
 	
 	@DefinePacket(name = "ConfirmProtocol")
 	@MakeReliable
 	static void confirmProtocol(@ConnectionParam Connection<?> connection, Protocol protocol) {
-		assert connection instanceof NetworkConnection;
-
 		((NetworkConnection<?>) connection).receiveConfirmPacket(protocol);
 	}
 
 	@DefinePacket(name = "CloseConnection")
 	@MakeReliable
 	static void closeConnection(@ConnectionParam Connection<?> connection) {
-		assert connection instanceof NetworkConnection;
-
 		((NetworkConnection<?>) connection).receiveClosePacket();
 	}
 

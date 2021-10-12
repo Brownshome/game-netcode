@@ -197,18 +197,22 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 				@Override
 				public void run() {
 					try {
-						manager.channel().send(buffer.duplicate(), address());
-						flagPacketSend(packet);
-					} catch(IOException e) {
-						udpConnectionResponse.completeExceptionally(e);
-					}
+						try {
+							manager.channel().send(buffer.duplicate(), address());
+							flagPacketSend(packet);
+						} catch(IOException e) {
+							udpConnectionResponse.completeExceptionally(e);
+						}
 
-					attempts++;
+						attempts++;
 
-					// attempts > msToWait / CONNECT_RESEND_DELAY
-					long msToWait = 10_000;
-					if (attempts > msToWait / CONNECT_RESEND_DELAY_MS) {
-						udpConnectionResponse.completeExceptionally(new TimeoutException("Connection to '" + address() + "' failed to reply in " + msToWait + "ms."));
+						// attempts > msToWait / CONNECT_RESEND_DELAY
+						long msToWait = 10_000;
+						if (attempts > msToWait / CONNECT_RESEND_DELAY_MS) {
+							udpConnectionResponse.completeExceptionally(new TimeoutException("Connection to '" + address() + "' failed to reply in " + msToWait + "ms."));
+						}
+					} catch (Throwable t) {
+						LOGGER.log(System.Logger.Level.ERROR, "Uncaught exception in message scheduler", t);
 					}
 				}
 			}, 0, CONNECT_RESEND_DELAY_MS, TimeUnit.MILLISECONDS);

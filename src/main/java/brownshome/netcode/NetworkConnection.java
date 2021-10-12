@@ -1,13 +1,15 @@
 package brownshome.netcode;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 import brownshome.netcode.util.ConnectionFlusher;
 
 public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> {
+	private static final System.Logger LOGGER = System.getLogger(NetworkConnection.class.getModule().getName());
+
 	public enum State {
 		/** The connection is not connected. Packets will be sent when the connection is ready. */
 		NO_CONNECTION,
@@ -256,6 +258,29 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		} finally { stateLock.writeLock().unlock(); }
 	}
 
+	protected void receiveNegotiationFailedPacket(String reason) {
+		try { stateLock.writeLock().lock();
+			switch (state) {
+				default:
+					throw new NetworkException("Unrequested protocol negotiation result", this);
+				case NEGOTIATING:
+					// If we were negotiating set the state to ready.
+					state = State.NO_CONNECTION;
+					// FALL THROUGH
+				case CLOSED:
+					// If we were closed, don't change the state, but send the packets in the send buffer, and notify the
+					// connect future.
+					if (confirmReceivedFuture == null || confirmReceivedFuture.isDone()) {
+						// We did not ask for this packet.
+						throw new NetworkException("Unrequested protocol confirmation packet", this);
+					}
+
+					LOGGER.log(System.Logger.Level.ERROR, "Error negotiating schema with ''{0}'': {1}", address(), reason);
+					confirmReceivedFuture.completeExceptionally(new FailedNegotiationException(reason));
+			}
+		} finally { stateLock.writeLock().unlock(); }
+	}
+
 	private void sendAllOfThePackets() {
 		for (var queued : sendBuffer) {
 			sendWithoutStateChecks(queued.packet).thenAccept(queued.future::complete);
@@ -272,19 +297,30 @@ public abstract class NetworkConnection<ADDRESS> implements Connection<ADDRESS> 
 		sendBuffer.clear();
 	}
 
-	protected void receiveNegotiatePacket(Protocol protocol) {
-		try { stateLock.writeLock().lock();
+	protected void receiveNegotiatePacket(Protocol.ProtocolNegotiation negotiation) {
+		try {
+			stateLock.writeLock().lock();
 			switch (state) {
-				case NO_CONNECTION -> {
-					state = State.READY;
-					this.protocol = protocol;
-					sendAllOfThePackets();
+				case NO_CONNECTION, READY -> {
+					if (negotiation.succeeded()) {
+						state = State.READY;
+						protocol = negotiation.protocol();
+						send(new ConfirmProtocolPacket(negotiation.protocol()));
+						sendAllOfThePackets();
+					} else {
+						send(new NegotiationFailedPacket("Missing schema: [%s]".formatted(negotiation.missingSchema()
+								.stream()
+								.map(Objects::toString)
+								.collect(Collectors.joining(", ")))));
+					}
 				}
-				case READY -> this.protocol = protocol;
+
 				case NEGOTIATING -> throw new NetworkException("Incoming negotiation while negotiating.", this);
 				case CLOSED -> throw new NetworkException("This connection is closed.", this);
 			}
-		} finally { stateLock.writeLock().unlock(); }
+		} finally {
+			stateLock.writeLock().unlock();
+		}
 	}
 
 	/** This method closes the connection without sending a packet to the other connection. */
