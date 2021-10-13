@@ -85,6 +85,11 @@ public final class Protocol implements Networkable {
 		Converter<Schema> converter = new Schema.SchemaConverter();
 		networkSizeData = NetworkUtils.calculateSize(schema, s -> new NetworkObjectSize(converter, s));
 	}
+
+	public boolean supports(Schema query) {
+		var allocation = nameToSchemaMapping.get(query.fullName());
+		return allocation != null && allocation.schema.majorVersion() == query.majorVersion() && allocation.schema.minorVersion() >= query.minorVersion();
+	}
 	
 	public int computePacketID(Packet packet) {
 		SchemaAllocation allocation = nameToSchemaMapping.get(packet.schemaName());
