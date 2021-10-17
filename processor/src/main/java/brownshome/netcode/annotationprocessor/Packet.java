@@ -154,7 +154,7 @@ public final class Packet {
 		Types types = env.getTypeUtils();
 
 		TypeMirror string = env.getElementUtils().getTypeElement("java.lang.String").asType();
-		TypeMirror list = env.getElementUtils().getTypeElement("java.util.List").asType();
+		TypeMirror list = env.getElementUtils().getTypeElement("java.util.ArrayList").asType();
 		TypeMirror networkable = env.getElementUtils().getTypeElement("brownshome.netcode.annotation.converter.Networkable").asType();
 
 		//String
@@ -168,7 +168,7 @@ public final class Packet {
 		}
 
 		//List
-		if(types.isSameType(types.erasure(parameter), types.erasure(list))) {
+		if(types.isAssignable(types.erasure(list), types.erasure(parameter))) {
 			TypeMirror genericType = ((DeclaredType) parameter).getTypeArguments().get(0);
 
 			ConverterExpression subExpression = findConverter(genericType, baseConverter, env);
