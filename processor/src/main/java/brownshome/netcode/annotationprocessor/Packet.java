@@ -157,6 +157,20 @@ public final class Packet {
 		TypeMirror list = env.getElementUtils().getTypeElement("java.util.ArrayList").asType();
 		TypeMirror networkable = env.getElementUtils().getTypeElement("brownshome.netcode.annotation.converter.Networkable").asType();
 
+		//List
+		if(types.isAssignable(types.erasure(list), types.erasure(parameter))) {
+			TypeMirror genericType = ((DeclaredType) parameter).getTypeArguments().get(0);
+
+			ConverterExpression subExpression = findConverter(genericType, baseConverter, env);
+
+			return new ListConverter(subExpression, genericType.toString());
+		}
+
+		//UseConverter specified
+		if(baseConverter != null) {
+			return new CustomConverter(baseConverter.toString());
+		}
+
 		//String
 		if(types.isSameType(parameter, string)) {
 			return new StringConverter();
@@ -167,24 +181,11 @@ public final class Packet {
 			return new BasicTypeConverter(parameter.toString());
 		}
 
-		//List
-		if(types.isAssignable(types.erasure(list), types.erasure(parameter))) {
-			TypeMirror genericType = ((DeclaredType) parameter).getTypeArguments().get(0);
-
-			ConverterExpression subExpression = findConverter(genericType, baseConverter, env);
-
-			return new ListConverter(subExpression, genericType.toString());
-		}
-
 		if(types.isAssignable(parameter, networkable)) {
 			return new NetworkableConverter();
 		}
 
-		if(baseConverter == null) {
-			throw new PacketCompileException("No converter found for " + parameter);
-		}
-
-		return new CustomConverter(baseConverter.toString());
+		throw new PacketCompileException("No converter found for " + parameter);
 	}
 
 	private static final Set<Modifier> DISALLOWED_METHOD_MODIFIERS = Set.of(
