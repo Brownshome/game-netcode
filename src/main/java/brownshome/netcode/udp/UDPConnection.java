@@ -160,6 +160,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 				protocol().handle(this, packet);
 			} catch (NetworkException ne) {
 				send(new ErrorPacket(ne.getMessage()));
+				LOGGER.log(System.Logger.Level.ERROR, "Error handling packet", ne);
 			}
 
 			orderingManager.notifyExecutionFinished(packet);
