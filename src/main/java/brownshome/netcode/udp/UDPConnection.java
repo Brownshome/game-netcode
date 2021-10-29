@@ -330,7 +330,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private void receiveMessage(int packetNumber, int messageNumber, ByteBuffer data) {
 		Packet incoming = protocol().createPacket(data);
 
-		LOGGER.log(System.Logger.Level.INFO, () -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
+		LOGGER.log(System.Logger.Level.DEBUG, () -> String.format("Remote address '%s' sent '%s'", address(), incoming.toString()));
 
 		// Dispatch the packet to the execution queue.
 		// TODO threadsafe

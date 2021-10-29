@@ -120,6 +120,8 @@ public class UDPConnectionManager implements ConnectionManager<InetSocketAddress
 
 	@Override
 	public UDPConnection getOrCreateConnection(InetSocketAddress other) {
+		assert other != null;
+
 		return connections.computeIfAbsent(other, o -> new UDPConnection(this, other));
 	}
 

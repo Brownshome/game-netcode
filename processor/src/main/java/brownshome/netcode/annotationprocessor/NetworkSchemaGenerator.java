@@ -38,6 +38,8 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 		TypeElement defineSchema = elements.getTypeElement(DefineSchema.class.getName());
 		TypeElement definePacket = elements.getTypeElement(DefinePacket.class.getName());
 
+		var packetsToWrite = new ArrayList<Packet>();
+
 		if (annotations.contains(defineSchema)) {
 			for (Element element : roundEnv.getElementsAnnotatedWith(defineSchema)) {
 				if (!(element instanceof PackageElement packageElement)) {
@@ -51,7 +53,8 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 				for (var iterator = packets.listIterator(); iterator.hasNext(); ) {
 					Packet p = iterator.next();
 					if (schema.packageElement().equals(p.packageElement())) {
-						writePacket(p, schema);
+						schema.addPacket(p);
+						packetsToWrite.add(p);
 						iterator.remove();
 					}
 				}
@@ -75,11 +78,17 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 
 				var schema = packageMapping.get(packet.packageElement());
 				if (schema != null) {
-					writePacket(packet, schema);
+					schema.addPacket(packet);
+					packetsToWrite.add(packet);
 				} else {
 					packets.add(packet);
 				}
 			}
+		}
+
+		// Delay the packet file creation until all ids in this schema have been allocated
+		for (var packet : packetsToWrite) {
+			writePacket(packet, packageMapping.get(packet.packageElement()));
 		}
 
 		if (packets.isEmpty()) {
@@ -99,7 +108,6 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 	}
 
 	private void writePacket(Packet packet, Schema schema) {
-		schema.addPacket(packet);
 		try (Writer writer = processingEnv.getFiler().createSourceFile(schema.packageName() + "." + packet.name() + "Packet").openWriter()) {
 			packet.writePacket(writer, schema);
 		} catch (IOException e) {
