@@ -10,32 +10,31 @@ import brownshome.netcode.Packet;
 import brownshome.netcode.Schema;
 
 @Generated("brownshome.netcode.annotationprocessor.NetworkSchemaGenerator")
-public final class ${schema.shortName()}Schema extends Schema {
+public final class ${schema.shortName()} extends Schema {
 	/** The currently supported version. */
 	public static final int MAJOR_VERSION = ${schema.majorVersion()}, MINOR_VERSION = ${schema.minorVersion()};
 	
 	/** The name of this schema */
 	public static final String FULL_NAME = "${schema.longName()}", SHORT_NAME = "${schema.shortName()}";
 	
-	public ${schema.shortName()}Schema() {
+	public ${schema.shortName()}() {
 		this(MAJOR_VERSION, MINOR_VERSION);
 	}
 
-	public ${schema.shortName()}Schema(int minorVersion) {
+	public ${schema.shortName()}(int minorVersion) {
 		this(MAJOR_VERSION, minorVersion);
 	}
 
-	public ${schema.shortName()}Schema(int majorVersion, int minorVersion) {
+	public ${schema.shortName()}(int majorVersion, int minorVersion) {
 		super(SHORT_NAME, FULL_NAME, majorVersion, minorVersion, createPacketList(minorVersion));
 	}
 
 	private static List<Function<ByteBuffer, Packet>> createPacketList(int minorVersion) {
-		// TODO create a system for varying packet IDs
-		return List.of(#foreach( $packet in $schema.packetDefinitions() )${packet.name()}Packet::new#if( ! $foreach.last ), #{end}#{end});
+		return List.of(#foreach( $packet in $schema.packetDefinitions() )${packet.name()}::new#if( ! $foreach.last ), #{end}#{end});
 	}
 
 	@Override
 	public Schema withMinorVersion(int minorVersion) {
-		return new ${schema.shortName()}Schema(majorVersion(), minorVersion);
+		return new ${schema.shortName()}(majorVersion(), minorVersion);
 	}
 }

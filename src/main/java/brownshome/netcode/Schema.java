@@ -43,17 +43,7 @@ public abstract class Schema {
 
 		@Override
 		public int size(Schema schema) {
-			return schema.size.size();
-		}
-
-		@Override
-		public boolean isSizeExact(Schema schema) {
-			return schema.size.exact();
-		}
-
-		@Override
-		public boolean isSizeConstant() {
-			return false;
+			return schema.size;
 		}
 	}
 	
@@ -61,7 +51,7 @@ public abstract class Schema {
 	private final String fullName, shortName;
 	private final List<Function<ByteBuffer, Packet>> packetConstructors;
 	
-	private final NetworkObjectSize size;
+	private final int size;
 	
 	protected Schema(String shortName, String fullName, 
 			int majorVersion, int minorVersion, 
@@ -73,10 +63,7 @@ public abstract class Schema {
 		this.shortName = shortName;
 		this.packetConstructors = packetConstructors;
 		
-		size = NetworkObjectSize.combine(
-				NetworkUtils.INT_SIZE,
-				NetworkUtils.INT_SIZE,
-				NetworkUtils.calculateSize(fullName));
+		size = Integer.BYTES + Integer.BYTES + NetworkUtils.calculateSize(fullName);
 	}
 	
 	public final Packet createPacket(int packetId, ByteBuffer data) {

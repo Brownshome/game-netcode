@@ -1,22 +1,19 @@
 package brownshome.netcode.systemtest.packets;
 
-import java.util.Random;
-
 import brownshome.netcode.annotation.DefinePacket;
-import brownshome.netcode.annotation.MakeOrdered;
-import brownshome.netcode.annotation.MakeReliable;
+import brownshome.netcode.annotation.Reliable;
 
 public class TestPacket {
 	private static final System.Logger LOGGER = System.getLogger("network-test");
 	
 	@DefinePacket(name = "TestMessage")
-	@MakeReliable
+	@Reliable
 	void receivePacket(String message) {
 		LOGGER.log(System.Logger.Level.INFO, "Received message: " + message);
 	}
 
 	@DefinePacket(name = "LongProcessing")
-	@MakeReliable
+	@Reliable
 	void longProcessing(long millis) {
 		try {
 			Thread.sleep(millis);
@@ -26,7 +23,7 @@ public class TestPacket {
 	}
 
 	@DefinePacket(name = "CauseError")
-	@MakeReliable
+	@Reliable
 	void causeError() {
 		throw new RuntimeException();
 	}

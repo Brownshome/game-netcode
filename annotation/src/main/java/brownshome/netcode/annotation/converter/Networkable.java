@@ -6,12 +6,6 @@ import java.nio.ByteBuffer;
 public interface Networkable {
 	void write(ByteBuffer buffer);
 	
-	/** Returns the size of the object in bytes */
+	/** Returns the maximum size of this object in bytes */
 	int size();
-	
-	/** Returns true if the size returned is exactly how many bytes will be needed. */
-	boolean isSizeExact();
-	
-	/** Returns true if the size returned is always the same number. */
-	boolean isSizeConstant();
 }

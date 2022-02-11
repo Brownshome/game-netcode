@@ -36,23 +36,13 @@ final class UDPPackets {
 		public int size(ByteBuffer object) {
 			return object.remaining();
 		}
-
-		@Override
-		public boolean isSizeExact(ByteBuffer object) {
-			return true;
-		}
-
-		@Override
-		public boolean isSizeConstant() {
-			return false;
-		}
 	}
 
 	/**
 	 * This method represents the connect-packet on the UDP layer that is sent before the connection is set up.
 	 */
 	// Client to Server
-	@DefinePacket(name = "Connect")
+	@DefinePacket
 	public static void connect(@ConnectionParam Connection<?> connection, long clientSalt, @UseConverter(Padding.class) Void unused) {
 		UDPConnection udpConnection;
 
@@ -67,7 +57,7 @@ final class UDPPackets {
 
 	// Server to Client
 	// Hash should equal hash(clientSalt)
-	@DefinePacket(name = "ConnectionDenied")
+	@DefinePacket
 	public static void connectionDenied(@ConnectionParam Connection<?> connection, int hash) {
 		UDPConnection udpConnection;
 
@@ -91,7 +81,7 @@ final class UDPPackets {
 	 * This packet sets the challenge salt for the connection
 	 * @param hash is hash(clientSalt + serverSalt)
 	 */
-	@DefinePacket(name = "Challenge")
+	@DefinePacket
 	public static void challenge(@ConnectionParam Connection<?> connection, int hash, long serverSalt) {
 		UDPConnection udpConnection;
 
@@ -177,7 +167,7 @@ final class UDPPackets {
 	 *
 	 * The acks are per UDPData packet. Sequence numbers are used for packet identification. If two packets with the same sequence number are received, then one will be discarded.
 	 */
-	@DefinePacket(name = "UDPData")
+	@DefinePacket
 	public static void udpData(@ConnectionParam Connection<?> connection, int hash, int mostRecentAck, int acks,
 							   int sequenceNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer messages) {
 
@@ -216,7 +206,7 @@ final class UDPPackets {
 	 * Fragments are sent with a size of 1024 Bytes of fragment data, the fragmentNumber is the place that this fragment goes in the re-assembly buffer. FragmentSetID determines which
 	 * set of fragments this one is a part of.
 	 */
-	@DefinePacket(name = "UDPFragment")
+	@DefinePacket
 	public static void udpFragment(@ConnectionParam Connection<?> connection, int hash, int acks, int sequenceNumber, byte fragmentSetID,
 	                               short fragmentNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer fragmentData) {
 		// TODO most recent ack.

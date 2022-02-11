@@ -1,11 +1,65 @@
 package brownshome.netcode;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.function.UnaryOperator;
 
-public interface Connection<ADDRESS> extends AutoCloseable {
+import brownshome.netcode.util.PacketExecutor;
+
+public abstract class Connection<ADDRESS, CONNECTION_MANAGER extends ConnectionManager<ADDRESS, ?>> implements AutoCloseable {
+	private final CONNECTION_MANAGER connectionManager;
+	private final ADDRESS address;
+
+	private final PacketExecutor packetExecutor;
+
+	private Protocol protocol;
+
+	protected Connection(CONNECTION_MANAGER connectionManager,
+	                     ADDRESS address,
+	                     Protocol initialProtocol) {
+		this.connectionManager = connectionManager;
+		this.address = address;
+
+		// Note: This field is non-final and so needs synchronisation if it is read post-construction in another thread
+		this.protocol = initialProtocol;
+		this.packetExecutor = new PacketExecutor(this);
+	}
+
+	/**
+	 * Executes an incoming packet on the correct handler. This method also ensures that the packet is not executed before
+	 * any packets that should have a happens-before relationship with it for this connection.
+	 * @param packet the packet to execute
+	 * @return a future representing the result of executing the packet
+	 */
+	protected CompletableFuture<Void> execute(Packet packet) {
+		return packetExecutor.execute(packet);
+	}
+
+	/**
+	 * Flushes all executing packets
+	 * @return a future that completes when all packets have flushed
+	 */
+	protected final CompletableFuture<Void> executionFlush() {
+		return packetExecutor.flush();
+	}
+
+	/**
+	 * Causes all executed packets and flushes to wait for a given future
+	 * @param wait the future to wait for
+	 */
+	protected final void executionWait(CompletableFuture<Void> wait) {
+		packetExecutor.wait(wait);
+	}
+
+	/**
+	 * Inserts an execution barrier
+	 * @param barrier a function that takes a future representing the start of the barrier and returns the end of the barrier
+	 * @return the future representing the end of the barrier
+	 */
+	protected final CompletableFuture<Void> executionBarrier(UnaryOperator<CompletableFuture<Void>> barrier) {
+		return packetExecutor.barrier(barrier);
+	}
+
 	/**
 	 * Sends a packet. If this connection has not yet connected, then the packet will be sent as soon as the connection
 	 * is made. If this future errors then the connection is in an error state, and will close. This may occur with
@@ -14,9 +68,9 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	 * @return A future that will return when the packet has been sent. In the case of a reliable packet it will return when it
 	 * has been received.
 	 */
-	CompletableFuture<Void> send(Packet packet);
+	public abstract CompletableFuture<Void> send(Packet packet);
 
-	default void sendSync(Packet packet) throws InterruptedException, NetworkException {
+	public final void sendSync(Packet packet) throws InterruptedException, NetworkException {
 		awaitFuture(send(packet));
 	}
 
@@ -31,30 +85,32 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	 * @return A future that will return when all of the packets have been sent, or in the case of reliable packets,
 	 * received.
 	 **/
-	CompletableFuture<Void> flush();
+	public abstract CompletableFuture<Void> flush();
 
-	default void flushSync() throws InterruptedException, NetworkException {
+	public final void flushSync() throws InterruptedException, NetworkException {
 		awaitFuture(flush());
 	}
 
 	/** Gets that address object for this connection. */
-	ADDRESS address();
+	public final ADDRESS address() {
+		return address;
+	}
 
 	/**
 	 * Attempts to negotiate a connection to the host at the other end.
 	 * @return A future that represents when a connection has been made successfully.
 	 **/
-	default CompletableFuture<Void> connect() {
+	public final  CompletableFuture<Void> connect() {
 		return connect(connectionManager().schemas());
 	}
 
-	default void connectSync() throws InterruptedException, NetworkException {
+	public final  void connectSync() throws InterruptedException, NetworkException {
 		awaitFuture(connect());
 	}
 
-	CompletableFuture<Void> connect(List<Schema> schemas);
+	public abstract CompletableFuture<Void> connect(List<Schema> schemas);
 
-	default void connectSync(List<Schema> schemas) throws InterruptedException, NetworkException {
+	public final void connectSync(List<Schema> schemas) throws InterruptedException, NetworkException {
 		awaitFuture(connect(schemas));
 	}
 
@@ -63,7 +119,7 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	 * Closing a connection that has already been closed will have no effect.
 	 * @return A future that returns when the connection has been closed cleanly.
 	 */
-	CompletableFuture<Void> closeConnection();
+	public abstract CompletableFuture<Void> closeConnection();
 
 	/**
 	 * This is for the Closeable interface, it initiates the closing procedure and the immediately returns.
@@ -71,25 +127,21 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	 * If more control is needed, use the awaitCloseConnection or closeConnection methods.
 	 */
 	@Override
-	default void close() {
-		try {
-			closeSync();
-		} catch(InterruptedException e) {
-			throw new NetworkException(e, this);
-		}
+	public final void close() throws InterruptedException, NetworkException {
+		closeSync();
 	}
 
-	default void closeSync() throws InterruptedException, NetworkException {
+	public final void closeSync() throws InterruptedException, NetworkException {
 		awaitFuture(closeConnection());
 	}
 
 	private <T> T awaitFuture(Future<T> future) throws InterruptedException, NetworkException {
 		try {
 			return future.get();
-		} catch(ExecutionException ee) {
+		} catch (ExecutionException ee) {
 			Throwable cause = ee.getCause();
 
-			if(cause instanceof NetworkException) {
+			if (cause instanceof NetworkException) {
 				throw (NetworkException) cause;
 			} else {
 				throw new NetworkException(cause, this);
@@ -101,11 +153,19 @@ public interface Connection<ADDRESS> extends AutoCloseable {
 	 * The connection manager that created this connection
 	 * @return the connection manager
 	 **/
-	ConnectionManager<ADDRESS, ? extends Connection<ADDRESS>> connectionManager();
+	public final CONNECTION_MANAGER connectionManager() {
+		return connectionManager;
+	}
 
 	/**
 	 * The protocol that is used by this connection.
 	 * @return the protocol
 	 **/
-	Protocol protocol();
+	public final Protocol protocol() {
+		return protocol;
+	}
+
+	protected final void protocol(Protocol protocol) {
+		this.protocol = protocol;
+	}
 }

@@ -8,10 +8,10 @@ import brownshome.netcode.Connection;
 import brownshome.netcode.NetworkException;
 import brownshome.netcode.NetworkUtils;
 import brownshome.netcode.Packet;
-import brownshome.netcode.NetworkObjectSize;
+import brownshome.netcode.Schema;
 
-public final class ${packet.name()}Packet extends Packet {
-	System.Logger LOGGER = System.getLogger(${packet.name()}Packet.class.getModule().toString());
+public final class ${packet.name()} extends Packet {
+	System.Logger LOGGER = System.getLogger(${packet.name()}.class.getModule().toString());
 
 #foreach ( $parameter in $packet.parameters() )
 #set( $converter = $parameter.converter() )
@@ -30,25 +30,20 @@ public final class ${packet.name()}Packet extends Packet {
 #end
 	}
 
-	private final NetworkObjectSize size;
+	private final int size;
 	
-	public ${packet.name()}Packet(#foreach( $parameter in $packet.parameters() )$parameter.type() ${parameter.dataName()}#if( ! $foreach.last ), #{end}#{end}) {
-		super(${schema.shortName()}Schema.FULL_NAME, "${packet.handledBy()}", $id,
-				new int[] { #foreach( $id in $packet.calculatedOrderingIDs($schema) )${id}#if( ! $foreach.last ), #{end}#{end} });
+	public ${packet.name()}(#foreach( $parameter in $packet.parameters() )$parameter.type() ${parameter.dataName()}#if( ! $foreach.last ), #{end}#{end}) {
+		super(${schema.shortName()}.class, $id,
+				List.of(#foreach( $orderedBy in $packet.orderedBy() )${orderedBy}.class#if( ! $foreach.last ), #{end}#{end}));
 
 #foreach ( $parameter in $packet.parameters() )
 		this.${parameter.dataName()} = ${parameter.dataName()};
 #end
 
-#foreach ( $parameter in $packet.parameters() )
-#set( $converter = $parameter.converter() )
-		NetworkObjectSize ${parameter.sizeName()} = ${converter.size( $parameter )};
-#end
-		
-		size = NetworkObjectSize.combine(#foreach( $parameter in $packet.parameters() )${parameter.sizeName()}#if( ! $foreach.last ), #{end}#{end});
+		size = 0#foreach ( $parameter in $packet.parameters() ) + ${parameter.converter().size( $parameter )}#{end};
 	}
 
-	protected ${packet.name()}Packet(ByteBuffer buffer) {
+	protected ${packet.name()}(ByteBuffer buffer) {
 		this(#foreach( $parameter in $packet.parameters() )#set( $converter = $parameter.converter() )${converter.read( $parameter, "buffer" )}#if( ! $foreach.last ), #{end}#{end});
 	}
 	
@@ -62,21 +57,11 @@ public final class ${packet.name()}Packet extends Packet {
 
 	@Override
 	public int size() {
-		return size.size();
-	}
-
-	@Override
-	public boolean isSizeExact() {
-		return size.exact();
+		return size;
 	}
 	
 	@Override
-	public boolean isSizeConstant() {
-		return size.constant();
-	}
-	
-	@Override
-	public void handle(Connection<?> connection, int minorVersion) throws NetworkException {
+	public void handle(Connection<?> connection, Schema schema) throws NetworkException {
 		try {
 			${packet.executionExpression()};
 		} catch (Throwable t) {
@@ -85,12 +70,10 @@ public final class ${packet.name()}Packet extends Packet {
 		}
 	}
 
-#if ( $packet.isReliable() )
 	@Override
 	public boolean reliable() {
-		return true;
+		return $packet.reliable();
 	}
-#end
 
 	@Override
 	public int priority() {
@@ -102,5 +85,10 @@ public final class ${packet.name()}Packet extends Packet {
 		Object[] items = new Object[] { #foreach( $parameter in $packet.parameters() )${parameter.dataName()}#if( ! $foreach.last ), #{end}#{end} };
 
 		return String.format("${packet.name()}Packet %s", Arrays.deepToString(items));
+	}
+
+	@Override
+	public int minimumMinorVersion() {
+		return $packet.minimumVersion();
 	}
 }

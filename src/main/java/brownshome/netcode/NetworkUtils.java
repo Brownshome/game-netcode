@@ -7,12 +7,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 public final class NetworkUtils {
-	public static final NetworkObjectSize INT_SIZE = new NetworkObjectSize(Integer.BYTES, true, true);
-	public static final NetworkObjectSize LONG_SIZE = new NetworkObjectSize(Long.BYTES, true, true);
-	public static final NetworkObjectSize BYTE_SIZE = new NetworkObjectSize(Byte.BYTES, true, true);
-	public static final NetworkObjectSize SHORT_SIZE = new NetworkObjectSize(Short.BYTES, true, true);
+	public static final int BYTE_SIZE = Byte.BYTES;
+	public static final int SHORT_SIZE = Short.BYTES;
+	public static final int FLOAT_SIZE = Float.BYTES;
+	public static final int INT_SIZE = Integer.BYTES;
+	public static final int LONG_SIZE = Long.BYTES;
+	public static final int DOUBLE_SIZE = Double.BYTES;
 
 	/** This constant of 3 occurs when the char 0xFFFF is encoded. */
 	private static final int MAXIMUM_UTF8_BYTES_PER_CHAR = 3;
@@ -76,18 +79,18 @@ public final class NetworkUtils {
 	/**
 	 * Calculates the length of a stored String including the header
 	 */
-	public static NetworkObjectSize calculateSize(String s) {
-		return new NetworkObjectSize(s.length() * MAXIMUM_UTF8_BYTES_PER_CHAR + Integer.BYTES, false, false);
+	public static int calculateSize(String s) {
+		return s.length() * MAXIMUM_UTF8_BYTES_PER_CHAR + Integer.BYTES;
 	}
 	
 	/**
 	 * Calculates the length of a stored list including the header
 	 */
-	public static <T> NetworkObjectSize calculateSize(Collection<T> collection, Function<? super T, NetworkObjectSize> converter) {
-		NetworkObjectSize rawList = collection.stream()
-				.map(converter)
-				.reduce(NetworkObjectSize.IDENTITY, NetworkObjectSize::combine);
+	public static <T> int calculateSize(Collection<T> collection, ToIntFunction<? super T> converter) {
+		var rawSize = collection.stream()
+				.mapToInt(converter)
+				.sum();
 		
-		return NetworkObjectSize.combine(INT_SIZE, rawList).nonConstant();
+		return rawSize + Integer.BYTES;
 	}
 }

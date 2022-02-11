@@ -29,6 +29,6 @@ public class CustomConverter implements ConverterExpression {
 
 	@Override
 	public String size(PacketParameter parameter) {
-		return String.format("new NetworkObjectSize(%s, %s)", parameter.converterName(), parameter.dataName());
+		return String.format("%s.size(%s)", parameter.converterName(), parameter.dataName());
 	}
 }

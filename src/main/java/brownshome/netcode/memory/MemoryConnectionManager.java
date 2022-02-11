@@ -16,88 +16,14 @@ import brownshome.netcode.*;
  *
  * Connect always returns instantly.
  */
-public class MemoryConnectionManager implements ConnectionManager<MemoryConnectionManager, MemoryConnection> {
-	private static final System.Logger LOGGER = System.getLogger(MemoryConnectionManager.class.getModule().getName());
-
-	private final List<Schema> schema;
-
-	private static final class BlockingExecutor implements Executor {
-		final Semaphore semaphore;
-		final Executor executor;
-
-		BlockingExecutor(Executor executor, int maximumConc) {
-			this.executor = executor;
-			this.semaphore = new Semaphore(maximumConc);
-		}
-
-		@Override
-		public void execute(Runnable command) {
-			try {
-				semaphore.acquire();
-			} catch (InterruptedException e) {
-				throw new RejectedExecutionException("Waiting interrupted");
-			}
-
-			executor.execute(() -> {
-				try {
-					command.run();
-				} finally { semaphore.release(); }
-			});
-		}
-	}
-
-	private final Map<String, Executor> executors = new HashMap<>();
-
-	private final Map<MemoryConnectionManager, MemoryConnection> connections = new HashMap<>();
-	
+public class MemoryConnectionManager extends ConnectionManager<MemoryConnectionManager, MemoryConnection> {
 	public MemoryConnectionManager(List<Schema> schema) {
-		this.schema = schema;
-	}
-	
-	@Override
-	public MemoryConnection getOrCreateConnection(MemoryConnectionManager other) {
-		return connections.computeIfAbsent(other, o -> new MemoryConnection(this, other));
+		super(schema);
 	}
 
 	@Override
-	public void registerExecutor(String name, Executor executor, int concurrency) {
-		executors.put(name, new BlockingExecutor(executor, concurrency));
-	}
-
-	public void executeOn(Runnable runner, String thread) {
-		//Block until the executor is free.
-		executors.get(thread).execute(runner);
-	}
-
-	@Override
-	public List<Schema> schemas() {
-		return schema;
-	}
-
-	@Override
-	public void close() {
-		for (var connection : connections.values()) {
-			connection.closeConnection();
-		}
-
-		for (var connection : connections.values()) {
-			try {
-				connection.closeConnection().get();
-			} catch (InterruptedException e) {
-				//Exit from the close operation.
-				return;
-			} catch (ExecutionException e) {
-				LOGGER.log(System.Logger.Level.ERROR,
-						String.format("Connection '%s' failed to terminate cleanly", connection.address()),
-						e.getCause());
-				//Keep trying to exit.
-			}
-		}
-	}
-
-	@Override
-	public CompletableFuture<Void> closeAsync() {
-		return CompletableFuture.allOf(connections.values().stream().map(Connection::closeConnection).toArray(CompletableFuture[]::new));
+	protected final MemoryConnection createNewConnection(MemoryConnectionManager memoryConnectionManager) {
+		return new MemoryConnection(this, memoryConnectionManager);
 	}
 
 	@Override

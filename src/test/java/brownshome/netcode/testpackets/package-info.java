@@ -5,7 +5,10 @@
  * @author James Brown
  *
  */
-@DefineSchema(name = "UnitTest")
+
+@DefineSchema
+@Name("UnitTestSchema")
 package brownshome.netcode.testpackets;
 
 import brownshome.netcode.annotation.DefineSchema;
+import brownshome.netcode.annotation.Name;

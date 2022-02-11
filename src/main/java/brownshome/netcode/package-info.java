@@ -3,7 +3,9 @@
  *
  * @author James Brown
  */
-@DefineSchema(name = "Base")
+@DefineSchema
+@Name("BaseSchema")
 package brownshome.netcode;
 
 import brownshome.netcode.annotation.DefineSchema;
+import brownshome.netcode.annotation.Name;

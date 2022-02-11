@@ -53,8 +53,13 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 				for (var iterator = packets.listIterator(); iterator.hasNext(); ) {
 					Packet p = iterator.next();
 					if (schema.packageElement().equals(p.packageElement())) {
-						schema.addPacket(p);
-						packetsToWrite.add(p);
+						try {
+							schema.addPacket(p);
+							packetsToWrite.add(p);
+						} catch (PacketCompileException pce) {
+							pce.raiseError(processingEnv);
+						}
+
 						iterator.remove();
 					}
 				}
@@ -78,8 +83,12 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 
 				var schema = packageMapping.get(packet.packageElement());
 				if (schema != null) {
-					schema.addPacket(packet);
-					packetsToWrite.add(packet);
+					try {
+						schema.addPacket(packet);
+						packetsToWrite.add(packet);
+					} catch (PacketCompileException pce) {
+						pce.raiseError(processingEnv);
+					}
 				} else {
 					packets.add(packet);
 				}
@@ -96,7 +105,7 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 				Schema schema = iterator.next();
 				iterator.remove();
 
-				try (Writer writer = filer.createSourceFile(schema.longName() + "Schema").openWriter()) {
+				try (Writer writer = filer.createSourceFile(schema.longName()).openWriter()) {
 					schema.writeSchema(writer);
 				} catch (IOException ioex) {
 					messager.printMessage(Kind.ERROR, "Unable to write out schema file: %s".formatted(ioex));
@@ -108,7 +117,7 @@ public class NetworkSchemaGenerator extends AbstractProcessor {
 	}
 
 	private void writePacket(Packet packet, Schema schema) {
-		try (Writer writer = processingEnv.getFiler().createSourceFile(schema.packageName() + "." + packet.name() + "Packet").openWriter()) {
+		try (Writer writer = processingEnv.getFiler().createSourceFile(schema.packageName() + "." + packet.name()).openWriter()) {
 			packet.writePacket(writer, schema);
 		} catch (IOException e) {
 			processingEnv.getMessager().printMessage(Kind.ERROR, "Unable to write out packet file: %s".formatted(e));

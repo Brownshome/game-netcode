@@ -2,160 +2,98 @@ package brownshome.netcode.memory;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.locks.*;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import brownshome.netcode.*;
-import brownshome.netcode.util.ConnectionFlusher;
-import brownshome.netcode.ordering.OrderingManager;
-import brownshome.netcode.ordering.SequencedPacket;
 
 /**
- * This is a connection that connects two MemoryConnectionManagers. This connection will never block the send method. But
- * it will drop packets if the other end of the connection is overloaded.
- *
- * Packets will be buffered up to a small number of packets. If a packet cannot be sent, non-reliable packets will be dropped
- * in preference to reliable packets.
- *
- * Packets will also be dropped based on how many packets they are holding up and / or their priority.
+ * This is a connection that connects two MemoryConnectionManagers
  **/
-public class MemoryConnection implements Connection<MemoryConnectionManager> {
+public class MemoryConnection extends Connection<MemoryConnectionManager, MemoryConnectionManager> {
+	private final CompletableFuture<Void> readyToSend;
+	private volatile boolean closed;
 
-	private final MemoryConnectionManager other;
-	private final MemoryConnectionManager manager;
-
-	private Protocol protocol;
-	private final ConnectionFlusher flusher;
-
-	/** This queue is used to store packets before the connection is connected, and they can be executed. It is null when
-	 * the connection is connected. */
-	private List<Packet> preConnectQueue = new ArrayList<>();
-	private final OrderingManager orderingManager;
-	private int sequenceNumber = 0;
-
-	/** This is a map from the packet to the future that represents it. */
-	private final Map<Packet, CompletableFuture<Void>> futures = new HashMap<>();
-	private CompletableFuture<Void> closingFuture = null;
-
-	/** This mapping stores the list
-	 * This is a thread-safe data structure */
 	protected MemoryConnection(MemoryConnectionManager manager, MemoryConnectionManager other) {
-		this.other = other;
-		this.manager = manager;
+		super(manager, other, Protocol.baseProtocol());
 
-		orderingManager = new OrderingManager(this::execute, this::drop);
+		readyToSend = new CompletableFuture<>();
+		closed = false;
 
-		this.protocol = Protocol.baseProtocol();
-		this.flusher = new ConnectionFlusher();
+		executionWait(readyToSend);
 	}
 
-	private synchronized void execute(Packet packet) {
-		other.executeOn(() -> {
-			try {
-				protocol().handle(this, packet);
-			} catch (NetworkException ne) {
-				var connection = other.getOrCreateConnection(manager);
-				//If the connection has already connected this does nothing
-				connection.connect();
-				connection.send(new ErrorPacket(ne.getMessage()));
-			}
-
-			orderingManager.notifyExecutionFinished(packet);
-
-			CompletableFuture<Void> future = futures.get(packet);
-			if (future != null) {
-				future.complete(null);
-			}
-		}, packet.handledBy());
-	}
-
-	private synchronized void drop(Packet packet) {
-		assert false; //Packets should never be dropped
+	protected final MemoryConnection otherConnection() {
+		return address().getOrCreateConnection(connectionManager());
 	}
 
 	@Override
-	public synchronized CompletableFuture<Void> send(Packet packet) {
-		CompletableFuture<Void> result = new CompletableFuture<>();
-
-		if (preConnectQueue != null) {
-			futures.put(packet, result);
-			preConnectQueue.add(packet);
-		} else {
-			if (packet.reliable()) {
-				futures.put(packet, result);
-			} else {
-				result.complete(null);
-			}
-
-			sendImpl(packet);
-		}
-
-		return result;
-	}
-
-	private void sendImpl(Packet packet) {
-		//TODO drop low priority and non-reliable packets before crashing on overload
-
-		SequencedPacket sequencedPacket = new SequencedPacket(packet, sequenceNumber++);
-		orderingManager.deliverPacket(sequencedPacket);
-		orderingManager.trimPacketNumbers(sequenceNumber);
-	}
-
-	@Override
-	public synchronized CompletableFuture<Void> flush() {
-		return flusher.flush();
-	}
-
-	@Override
-	public MemoryConnectionManager address() {
-		return other;
-	}
-
-	@Override
-	public synchronized CompletableFuture<Void> connect(List<Schema> schemas) {
-		if (closingFuture != null) {
+	public CompletableFuture<Void> send(Packet packet) {
+		if (closed) {
 			return CompletableFuture.failedFuture(new NetworkException("This connection is closed", this));
 		}
 
-		if (preConnectQueue != null) {
-			//The order of these operands does not matter.
-			Protocol.ProtocolNegotiation negotiationResult = Protocol.negotiateProtocol(other.schemas(), schemas);
-			protocol = negotiationResult.protocol();
+		return otherConnection().execute(packet);
+	}
 
-			var savedQueue = preConnectQueue;
-			preConnectQueue = null;
+	@Override
+	public CompletableFuture<Void> flush() {
+		return otherConnection().executionFlush();
+	}
 
-			for (Packet packet : savedQueue) {
-				sendImpl(packet);
-			}
-		} else {
-			// We are already connected. Make sure to flush old packets before re-negotiating
-			preConnectQueue = new ArrayList<>();
-			return flush().thenCompose(v -> connect(schemas));
+	private final Lock connectLock = new ReentrantLock();
+
+	@Override
+	public CompletableFuture<Void> connect(List<Schema> schemas) {
+		if (closed) {
+			return CompletableFuture.failedFuture(new NetworkException("This connection is closed", this));
 		}
 
-		return CompletableFuture.completedFuture(null);
-	}
-
-	@Override
-	public synchronized CompletableFuture<Void> closeConnection() {
-		if (closingFuture == null) {
-			//TODO tell the other connection to shutdown
-
-			closingFuture = flush().thenRun(() -> {
-				//Remove this connection from the queue
-				//TODO removeConnection();
-			});
+		var negotiationResult = Protocol.negotiateProtocol(schemas, address().schemas());
+		if (!negotiationResult.succeeded()) {
+			return CompletableFuture.failedFuture(new FailedNegotiationException("Missing schema: [%s]".formatted(
+					negotiationResult.missingSchema().stream().map(Objects::toString).collect(Collectors.joining(", ")))));
 		}
 
-		return closingFuture;
+		// Attempt to lock both our connect lock and the other connections connect lock
+		while (true) {
+			try {
+				connectLock.lock();
+
+				if (!otherConnection().connectLock.tryLock()) {
+					// The other connection must be trying to connect
+					continue;
+				}
+
+				try {
+					// We have locked both, perform the connection
+					if (!readyToSend.isDone()) {
+						// First connection
+						protocol(negotiationResult.protocol());
+						otherConnection().protocol(negotiationResult.protocol());
+						readyToSend.complete(null);
+						otherConnection().readyToSend.complete(null);
+
+						return CompletableFuture.completedFuture(null);
+					} else {
+						// We need to barrier the connection process
+						// Each connection only uses its own protocol, so they can be updated individually
+						return CompletableFuture.allOf(
+								executionBarrier(start -> start.thenRun(() -> protocol(negotiationResult.protocol()))),
+								otherConnection().executionBarrier(start -> start.thenRun(() -> otherConnection().protocol(negotiationResult.protocol()))));
+					}
+				} finally { otherConnection().connectLock.unlock(); }
+			} finally {	connectLock.unlock(); }
+		}
 	}
 
 	@Override
-	public MemoryConnectionManager connectionManager() {
-		return manager;
-	}
+	public CompletableFuture<Void> closeConnection() {
+		closed = true;
+		otherConnection().closed = true;
 
-	@Override
-	public Protocol protocol() {
-		return protocol;
+		// Flushes don't mind being stacked up, so this should work fine!
+		return CompletableFuture.allOf(executionFlush(), otherConnection().executionFlush());
 	}
 }

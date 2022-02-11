@@ -19,6 +19,6 @@ public class NetworkableConverter implements ConverterExpression {
 
 	@Override
 	public String size(PacketParameter parameter) {
-		return String.format("new NetworkObjectSize(%sData)", parameter.name());
+		return String.format("%sData.size()", parameter.name());
 	}
 }

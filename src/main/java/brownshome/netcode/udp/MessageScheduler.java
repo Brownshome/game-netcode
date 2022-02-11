@@ -224,7 +224,7 @@ final class MessageScheduler {
 
 		var ack = ackSender.createAck();
 
-		UDPDataPacket packet = new UDPDataPacket(
+		UdpDataPacket packet = new UdpDataPacket(
 				UDPPackets.hashDataPacket(connection.remoteSalt(), ack.largestAck, ack.field, toSend.sequenceNumber, toSend.dataBuffer.duplicate()),
 				ack.largestAck, ack.field, toSend.sequenceNumber, toSend.dataBuffer.duplicate());
 

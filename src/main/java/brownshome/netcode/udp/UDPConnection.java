@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class UDPConnection extends NetworkConnection<InetSocketAddress> {
+public class UDPConnection extends NetworkConnection<InetSocketAddress, UDPConnectionManager> {
 	/*
 
 	The subclass handles the connection and protocol negotiation. We need to decide how to identify and secure clients.
@@ -33,7 +33,7 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	private static final long CONNECT_RESEND_DELAY_MS = 100;
 	private static final int FRAGMENT_SIZE = 1024;
 
-	private static final Protocol UDP_LAYER_PROTOCOL = new Protocol(List.of(new UDPSchema()));
+	private static final Protocol UDP_LAYER_PROTOCOL = new Protocol(List.of(new UdpSchema()));
 
 	private final UDPConnectionManager manager;
 
@@ -148,23 +148,25 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	@Override
 	protected Protocol baseProtocol() {
 		// We need the UDP schema as well as the base schema
-		return new Protocol(List.of(new BaseSchema(0), new UDPSchema(0)));
+		return new Protocol(List.of(new BaseSchema(0), new UdpSchema(0)));
 	}
 
 	/**
 	 * Called by the ordering system when this incoming packet can be executed.
 	 */
 	private synchronized void execute(Packet packet) {
-		manager.executeOn(() -> {
-			try {
-				protocol().handle(this, packet);
-			} catch (NetworkException ne) {
-				send(new ErrorPacket(ne.getMessage()));
-				LOGGER.log(System.Logger.Level.ERROR, "Error handling packet", ne);
-			}
+		CompletableFuture.runAsync(() -> protocol().handle(this, packet), manager.executorService(packet))
+						.whenComplete((unused, throwable) -> {
+							if (throwable != null) {
+								if (throwable instanceof NetworkException ne) {
+									send(new ErrorPacket(ne.getMessage()));
+								}
 
-			orderingManager.notifyExecutionFinished(packet);
-		}, packet.handledBy());
+								LOGGER.log(System.Logger.Level.ERROR, "Error handling packet", throwable);
+							}
+
+							orderingManager.notifyExecutionFinished(packet);
+						});
 	}
 
 	/**
@@ -246,14 +248,14 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 	}
 
 	void encode(ByteBuffer buffer, Packet packet) {
-		assert !packet.schemaName().equals(UDPSchema.FULL_NAME);
+		assert !packet.schema().equals(UdpSchema.class);
 
 		buffer.putInt(protocol().computePacketID(packet));
 		packet.write(buffer);
 	}
 
 	void encodeUDP(ByteBuffer buffer, Packet packet) {
-		assert packet.schemaName().equals(UDPSchema.FULL_NAME);
+		assert packet.schema().equals(UdpSchema.class);
 
 		buffer.putInt(UDP_LAYER_PROTOCOL.computePacketID(packet));
 		packet.write(buffer);
@@ -270,15 +272,15 @@ public class UDPConnection extends NetworkConnection<InetSocketAddress> {
 
 	void receive(ByteBuffer buffer) {
 		Packet incoming = UDP_LAYER_PROTOCOL.createPacket(buffer);
-		if (!incoming.schemaName().equals(UDPSchema.FULL_NAME)) {
+		if (!incoming.schema().equals(UdpSchema.class)) {
 			LOGGER.log(System.Logger.Level.ERROR, String.format("Remote address '%s' sent non-UDP packet '%s'", address(), incoming));
 		} else {
 			LOGGER.log(System.Logger.Level.DEBUG, () -> String.format("Remote address '%s' sent '%s'", address(), incoming));
 		}
 
-		manager.executeOn(() -> {
+		manager.executor(incoming).execute(() -> {
 			UDP_LAYER_PROTOCOL.handle(this, incoming);
-		}, incoming.handledBy());
+		});
 	}
 
 	void receiveConnectPacket(long clientSalt) {

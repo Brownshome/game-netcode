@@ -26,14 +26,4 @@ final class Padding implements Converter<Void> {
 	public int size(Void object) {
 		return PADDING;
 	}
-
-	@Override
-	public boolean isSizeExact(Void object) {
-		return true;
-	}
-
-	@Override
-	public boolean isSizeConstant() {
-		return true;
-	}
 }

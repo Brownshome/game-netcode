@@ -55,14 +55,14 @@ public final class Protocol implements Networkable {
 	}
 
 	/** This is ordered by the input order of the schema. */
-	private final LinkedHashMap<String, SchemaAllocation> nameToSchemaMapping;
+	private final LinkedHashMap<Class<? extends Schema>, SchemaAllocation> schemaMapping;
 	private final Map<Integer, SchemaAllocation> IDToSchemaMapping;
 	
-	private final NetworkObjectSize networkSizeData;
+	private final int networkSizeData;
 
 	/** The order of the schema does matter. */
 	public Protocol(List<Schema> schema) {
-		nameToSchemaMapping = new LinkedHashMap<>();
+		schemaMapping = new LinkedHashMap<>();
 		IDToSchemaMapping = new HashMap<>();
 		
 		int startID = 0;
@@ -72,9 +72,9 @@ public final class Protocol implements Networkable {
 			
 			int numberOfSlots = s.numberOfIDsRequired();
 			
-			assert !nameToSchemaMapping.containsKey(s.fullName()) : "Schema " + s.fullName() + " is included twice in the mapping.";
+			assert !schemaMapping.containsKey(s.getClass()) : "Schema " + s.fullName() + " is included twice in the mapping.";
 			
-			nameToSchemaMapping.put(s.fullName(), allocation);
+			schemaMapping.put(s.getClass(), allocation);
 			for (int i = 0; i < numberOfSlots; i++) {
 				IDToSchemaMapping.put(startID + i, allocation);
 			}
@@ -83,18 +83,19 @@ public final class Protocol implements Networkable {
 		}
 		
 		Converter<Schema> converter = new Schema.SchemaConverter();
-		networkSizeData = NetworkUtils.calculateSize(schema, s -> new NetworkObjectSize(converter, s));
+		networkSizeData = NetworkUtils.calculateSize(schema, converter::size);
 	}
 
 	public boolean supports(Schema query) {
-		var allocation = nameToSchemaMapping.get(query.fullName());
-		return allocation != null && allocation.schema.majorVersion() == query.majorVersion() && allocation.schema.minorVersion() >= query.minorVersion();
+		var allocation = schemaMapping.get(query.getClass());
+		return allocation != null && allocation.schema.majorVersion() == query.majorVersion()
+				&& allocation.schema.minorVersion() >= query.minorVersion();
 	}
 	
 	public int computePacketID(Packet packet) {
-		SchemaAllocation allocation = nameToSchemaMapping.get(packet.schemaName());
+		SchemaAllocation allocation = schemaMapping.get(packet.schema());
 
-		assert allocation != null : "Unknown schema " + packet.schemaName();
+		assert allocation != null : "Unknown schema " + packet.schema().getName();
 
 		return allocation.startID + packet.packetID();
 	}
@@ -126,15 +127,20 @@ public final class Protocol implements Networkable {
 	 * @param packet the packet to execute
 	 * @throws NetworkException if there is an error executing the packet
 	 */
-	public void handle(Connection<?> connection, Packet packet) throws NetworkException {
-		Schema schema = nameToSchemaMapping.get(packet.schemaName()).schema;
-		
-		packet.handle(connection, schema.minorVersion());
+	public void handle(Connection<?, ?> connection, Packet packet) throws NetworkException {
+		Schema schema = schemaMapping.get(packet.schema()).schema;
+
+		if (schema.minorVersion() < packet.minimumMinorVersion()) {
+			throw new NetworkException("Invalid packet ID (minor version mismatch, %d < %d)"
+					.formatted(schema.minorVersion(), packet.minimumMinorVersion()), connection);
+		}
+
+		packet.handle(connection, schema);
 	}
 
 	@Override
 	public String toString() {
-		return String.format("Protocol %s", nameToSchemaMapping.values()
+		return String.format("Protocol %s", schemaMapping.values()
 				.stream().map(alloc -> alloc.schema).collect(Collectors.toList()));
 	}
 
@@ -153,23 +159,13 @@ public final class Protocol implements Networkable {
 		Converter<Schema> schemaConverter = new Schema.SchemaConverter();
 		
 		//Write all of the schemas into the stream in order.
-		NetworkUtils.writeCollection(buffer, nameToSchemaMapping.values(), (buf, allocation) -> {
+		NetworkUtils.writeCollection(buffer, schemaMapping.values(), (buf, allocation) -> {
 			schemaConverter.write(buffer, allocation.schema);
 		});
 	}
 
 	@Override
 	public int size() {
-		return networkSizeData.size();
-	}
-
-	@Override
-	public boolean isSizeExact() {
-		return networkSizeData.exact();
-	}
-
-	@Override
-	public boolean isSizeConstant() {
-		return networkSizeData.constant();
+		return networkSizeData;
 	}
 }

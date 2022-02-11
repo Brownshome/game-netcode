@@ -25,7 +25,7 @@ public class OrderingManager {
 	private final Consumer<Packet> execute, drop;
 
 	/** Store a list of packets that have not yet been handled */
-	private final Map<PacketType, PacketTypeQueue> processingQueues;
+	private final Map<Class<? extends Packet>, PacketTypeQueue> processingQueues;
 
 	private final Map<Packet, SequencedPacket> sequencedPacketMap = new HashMap<>();
 
@@ -55,7 +55,7 @@ public class OrderingManager {
 	 */
 	public synchronized void preDeliverPacket(SequencedPacket packet) {
 		checkSequenceNumber(packet);
-		getQueue(packet.packetType()).preReceive(packet);
+		getQueue(packet.packet().getClass()).preReceive(packet);
 	}
 
 	/**
@@ -86,7 +86,7 @@ public class OrderingManager {
 		}
 
 		packetsWaiting++;
-		var type = packet.packetType();
+		var type = packet.packet().getClass();
 
 		// 2. place onto the queue
 		getQueue(type).add(packet);
@@ -130,7 +130,7 @@ public class OrderingManager {
 		packetsWaiting--;
 
 		var sequencedPacket = sequencedPacketMap.remove(packet);
-		getQueue(new PacketType(packet)).notifyExecutionFinished(sequencedPacket);
+		getQueue(packet.getClass()).notifyExecutionFinished(sequencedPacket);
 	}
 
 	/**
@@ -156,7 +156,7 @@ public class OrderingManager {
 		drop.accept(packet.packet());
 	}
 
-	PacketTypeQueue getQueue(PacketType type) {
+	PacketTypeQueue getQueue(Class<? extends Packet> type) {
 		return processingQueues.computeIfAbsent(type, (t) -> new PacketTypeQueue(this));
 	}
 

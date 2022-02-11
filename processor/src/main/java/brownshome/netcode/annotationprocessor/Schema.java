@@ -1,18 +1,15 @@
 package brownshome.netcode.annotationprocessor;
 
-import java.io.Writer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import javax.lang.model.element.PackageElement;
-
+import brownshome.netcode.annotation.DefineSchema;
+import brownshome.netcode.annotation.Name;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 
-import brownshome.netcode.annotation.DefineSchema;
+import javax.lang.model.element.PackageElement;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /** Holds the information needed to create a schema java file. */
 public class Schema {
@@ -27,32 +24,41 @@ public class Schema {
 	
 	public Schema(PackageElement element) {
 		DefineSchema schema = element.getAnnotation(DefineSchema.class);
+		Name name = element.getAnnotation(Name.class);
+
+		if (name != null) {
+			shortName = name.value();
+		} else {
+			var packageName = element.getSimpleName().toString();
+			shortName = packageName.substring(0, 1).toUpperCase() + packageName.substring(1) + "Schema";
+		}
 
 		this.element = element;
-		shortName = schema.name();
 		minorVersion = schema.minor();
 		majorVersion = schema.major();
 		packageName = element.getQualifiedName().toString();
 		packetDefinitions = new ArrayList<>();
 	}
 	
-	public void addPacket(Packet packet) {
+	public void addPacket(Packet packet) throws PacketCompileException {
 		packetDefinitions.add(packet);
-	}
-	
-	public int idForPacket(String name) {
-		for(int i = 0; i < packetDefinitions.size(); i++) {
-			Packet packet = packetDefinitions.get(i);
-			
-			if(packet.name().equals(name)) {
-				return i;
-			}
+
+		if (packet.minimumVersion() > minorVersion) {
+			throw new PacketCompileException(
+					"Packet %s has a higher 'since' value than this schema. (%d > %d)".formatted(packet.name(),
+							packet.minimumVersion(),
+							minorVersion));
 		}
-		
-		throw new IllegalArgumentException(String.format("No packet matching '%s'", name));
 	}
 	
 	public void writeSchema(Writer writer) {
+		// Sort packets by their minimum version number and then their class name
+		// This ensures that later additions of packets do not impact the order of earlier packet IDs
+		packetDefinitions
+				.sort(Comparator.comparingInt(Packet::minimumVersion)
+						.thenComparing(Packet::name)
+						.thenComparing(p -> p.packageElement().getQualifiedName().toString()));
+
 		VelocityContext context = new VelocityContext();
 		context.put("schema", this);
 

@@ -11,10 +11,4 @@ public interface Converter<T> {
 	
 	/** Returns the size of the object in bytes */
 	int size(T object);
-	
-	/** Returns true if the size returned is exactly how many bytes will be needed. */
-	boolean isSizeExact(T object);
-	
-	/** Returns true if the size returned is always the same number. */
-	boolean isSizeConstant();
 }

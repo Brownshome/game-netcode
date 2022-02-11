@@ -99,13 +99,11 @@ final class PacketTypeQueue {
 
 	/** This populates the two dependency sets with information. */
 	private void populateLinkages(Packet packet) {
-		String schemaName = packet.schemaName();
+		var schema = packet.schema();
 		cannotOvertake = new HashSet<>();
 
-		for(int id : packet.orderedIds()) {
-			PacketType type = new PacketType(schemaName, id);
-
-			var queue = manager.getQueue(type);
+		for(var orderedBy : packet.orderedBy()) {
+			var queue = manager.getQueue(orderedBy);
 			queue.cannotBeOvertaken.add(this);
 			cannotOvertake.add(queue);
 		}

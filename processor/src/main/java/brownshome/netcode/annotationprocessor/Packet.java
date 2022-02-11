@@ -1,45 +1,26 @@
 package brownshome.netcode.annotationprocessor;
 
-import java.io.Writer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import brownshome.netcode.annotation.*;
+import brownshome.netcode.annotation.converter.UseConverter;
+import brownshome.netcode.annotationprocessor.parameter.*;
+import org.apache.velocity.Template;
+import org.apache.velocity.VelocityContext;
 
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
+import javax.lang.model.element.*;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.MirroredTypeException;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
+import javax.lang.model.util.SimpleAnnotationValueVisitor14;
 import javax.lang.model.util.Types;
-
-import org.apache.velocity.Template;
-import org.apache.velocity.VelocityContext;
-
-import brownshome.netcode.annotation.ConnectionParam;
-import brownshome.netcode.annotation.DefinePacket;
-import brownshome.netcode.annotation.HandledBy;
-import brownshome.netcode.annotation.MakeOrdered;
-import brownshome.netcode.annotation.MakeReliable;
-import brownshome.netcode.annotation.VersionParam;
-import brownshome.netcode.annotation.WithPriority;
-import brownshome.netcode.annotation.converter.UseConverter;
-import brownshome.netcode.annotationprocessor.parameter.BasicTypeConverter;
-import brownshome.netcode.annotationprocessor.parameter.ConverterExpression;
-import brownshome.netcode.annotationprocessor.parameter.CustomConverter;
-import brownshome.netcode.annotationprocessor.parameter.ListConverter;
-import brownshome.netcode.annotationprocessor.parameter.NetworkableConverter;
-import brownshome.netcode.annotationprocessor.parameter.PacketParameter;
-import brownshome.netcode.annotationprocessor.parameter.StringConverter;
+import javax.tools.Diagnostic;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Stores all of the data to define a packet.
@@ -49,52 +30,93 @@ public final class Packet {
 
 	private final String name;
 	private final int priority;
-	private final boolean isReliable;
-	private final String[] orderedBy;
-	private final String handledBy;
+	private final boolean reliable;
+	private final List<String> orderedBy;
 	private final int minimumVersion;
 	private final String executionExpression;
 	private final PackageElement packageElement;
 
 	private final List<PacketParameter> parameters;
 
-	/** Special parameters, -1 means that they are not included in the method call. */
-	private final int versionIndex, connectionIndex;
-
+	@SuppressWarnings("unchecked")
 	public Packet(ExecutableElement element, ProcessingEnvironment env) throws PacketCompileException {
+		Types types = env.getTypeUtils();
+		Elements elements = env.getElementUtils();
+
 		packageElement = env.getElementUtils().getPackageOf(element);
 
 		//Extract all of the present annotations
 		DefinePacket definePacket = element.getAnnotation(DefinePacket.class);
-		minimumVersion = definePacket.minimumVersion();
-		name = definePacket.name();
+		minimumVersion = definePacket.since();
 
-		MakeOrdered ordering = element.getAnnotation(MakeOrdered.class);
-		if (ordering == null) {
-			orderedBy = new String[0];
+		var nameAnnotation = element.getAnnotation(brownshome.netcode.annotation.Name.class);
+		if (nameAnnotation == null) {
+			var methodName = element.getSimpleName().toString();
+
+			// Default name
+			name = methodName.substring(0, 1).toUpperCase() + methodName.substring(1) + "Packet";
 		} else {
-			orderedBy = ordering.value();
+			name = nameAnnotation.value();
 		}
-		
-		HandledBy handler = element.getAnnotation(HandledBy.class);
-		handledBy = handler == null ? "default" : handler.value();
 
-		isReliable = element.getAnnotation(MakeReliable.class) != null;
+		var orderingType = elements.getTypeElement(OrderedBy.class.getName()).asType();
 
-		WithPriority withPriority = element.getAnnotation(WithPriority.class);
-		priority = handler == null ? 1 : withPriority.value();
+		orderedBy = new ArrayList<>();
+		orderedBy.add(name);
+
+		for (var a : element.getAnnotationMirrors()) {
+			if (a.getAnnotationType().equals(orderingType)) {
+				for (var v : a.getElementValues().entrySet()) {
+					switch (v.getKey().getSimpleName().toString()) {
+						case "value" -> {
+							var visitor = new SimpleAnnotationValueVisitor14<Boolean, Void>(false) {
+								@Override
+								public Boolean visitArray(List<? extends AnnotationValue> vals, Void o) {
+									for (var v : vals) {
+										if (!v.accept(this, o)) {
+											env.getMessager().printMessage(Diagnostic.Kind.ERROR, "Invalid @OrderedBy type '" + v + "'");
+										}
+									}
+
+									return super.visitArray(vals, o);
+								}
+
+								@Override
+								public Boolean visitType(TypeMirror t, Void o) {
+									orderedBy.add(t.getKind().name());
+
+									return true;
+								}
+							};
+
+							v.getValue().accept(visitor, null);
+						}
+
+						case "self" -> {
+							if (!(Boolean) v.getValue().getValue()) {
+								orderedBy.remove(name);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		reliable = element.getAnnotation(Reliable.class) != null;
+
+		Priority withPriority = element.getAnnotation(Priority.class);
+		priority = withPriority == null ? 0 : withPriority.value();
 
 		List<? extends VariableElement> parameters = element.getParameters();
 
-		Types types = env.getTypeUtils();
-		Elements elements = env.getElementUtils();
-
-		TypeMirror connectionType = types.getDeclaredType(elements.getTypeElement("brownshome.netcode.Connection"), types.getWildcardType(null, null));
+		TypeMirror connectionType = types.getDeclaredType(
+				elements.getTypeElement("brownshome.netcode.Connection"),
+				types.getWildcardType(null, null));
 		TypeMirror versionType = types.getPrimitiveType(TypeKind.INT);
 
 		this.parameters = new ArrayList<>();
 
-		int con = -1, version = -1;
+		int con = -1, schemaIndex = -1;
 		for (int i = 0; i < parameters.size(); i++) {
 			VariableElement parameter = parameters.get(i);
 
@@ -108,16 +130,16 @@ public final class Packet {
 				}
 
 				con = i;
-			} else if (parameter.getAnnotation(VersionParam.class) != null) {
+			} else if (parameter.getAnnotation(SchemaParam.class) != null) {
 				if (!types.isSameType(parameter.asType(), versionType)) {
 					throw new PacketCompileException("Wrong type for the @VersionParam annotation", parameter);
 				}
 
-				if (version != -1) {
-					throw new PacketCompileException("Two version parameters cannot be defined", parameter);
+				if (schemaIndex != -1) {
+					throw new PacketCompileException("Two schema parameters cannot be defined", parameter);
 				}
 
-				version = i;
+				schemaIndex = i;
 			} else {
 				TypeMirror childConverterType;
 
@@ -136,7 +158,7 @@ public final class Packet {
 				ConverterExpression converter;
 				try {
 					converter = findConverter(parameter.asType(), childConverterType, env);
-				} catch(PacketCompileException pce) {
+				} catch (PacketCompileException pce) {
 					throw new PacketCompileException(pce.getMessage(), parameter);
 				}
 
@@ -144,10 +166,7 @@ public final class Packet {
 			}
 		}
 
-		versionIndex = version;
-		connectionIndex = con;
-		
-		executionExpression = generateExecutionExpression(element, this.parameters, versionIndex, connectionIndex);
+		executionExpression = generateExecutionExpression(element, this.parameters, schemaIndex, con);
 	}
 
 	private ConverterExpression findConverter(TypeMirror parameter, TypeMirror baseConverter, ProcessingEnvironment env) throws PacketCompileException {
@@ -158,7 +177,7 @@ public final class Packet {
 		TypeMirror networkable = env.getElementUtils().getTypeElement("brownshome.netcode.annotation.converter.Networkable").asType();
 
 		//List
-		if(types.isAssignable(types.erasure(list), types.erasure(parameter))) {
+		if (types.isAssignable(types.erasure(list), types.erasure(parameter))) {
 			TypeMirror genericType = ((DeclaredType) parameter).getTypeArguments().get(0);
 
 			ConverterExpression subExpression = findConverter(genericType, baseConverter, env);
@@ -167,21 +186,21 @@ public final class Packet {
 		}
 
 		//UseConverter specified
-		if(baseConverter != null) {
+		if (baseConverter != null) {
 			return new CustomConverter(baseConverter.toString());
 		}
 
 		//String
-		if(types.isSameType(parameter, string)) {
+		if (types.isSameType(parameter, string)) {
 			return new StringConverter();
 		}
 
 		//PrimitiveType
-		if(parameter.getKind().isPrimitive()) {
+		if (parameter.getKind().isPrimitive()) {
 			return new BasicTypeConverter(parameter.toString());
 		}
 
-		if(types.isAssignable(parameter, networkable)) {
+		if (types.isAssignable(parameter, networkable)) {
 			return new NetworkableConverter();
 		}
 
@@ -199,25 +218,25 @@ public final class Packet {
 			Modifier.PRIVATE,
 			Modifier.ABSTRACT);
 
-	private static String generateExecutionExpression(ExecutableElement element, List<PacketParameter> parameters, int versionIndex, int connectionIndex) throws PacketCompileException {
+	private static String generateExecutionExpression(ExecutableElement element, List<PacketParameter> parameters, int schemaIndex, int connectionIndex) throws PacketCompileException {
 		StringBuilder args = new StringBuilder();
 
 		int i = 0;
-		for(var it = parameters.iterator(); ; i++) {
-			if(i == versionIndex) {
-				args.append("minorVersion");
-			} else if(i == connectionIndex) {
+		for (var it = parameters.iterator(); ; i++) {
+			if (i == schemaIndex) {
+				args.append("schema");
+			} else if (i == connectionIndex) {
 				args.append("connection");
 			} else {
-				if(!it.hasNext())
+				if (!it.hasNext())
 					break;
 
 				args.append(it.next().dataName());
 			}
 
-			boolean isLast = i >= versionIndex && i >= connectionIndex && !it.hasNext();
+			boolean isLast = i >= schemaIndex && i >= connectionIndex && !it.hasNext();
 
-			if(isLast) {
+			if (isLast) {
 				break;
 			} else {
 				args.append(", ");
@@ -227,35 +246,33 @@ public final class Packet {
 		Set<Modifier> modifiers = element.getModifiers();
 		ElementKind kind = element.getKind();
 
-		if(!Collections.disjoint(modifiers, DISALLOWED_METHOD_MODIFIERS)) {
+		if (!Collections.disjoint(modifiers, DISALLOWED_METHOD_MODIFIERS)) {
 			throw new PacketCompileException("Disallowed modifier", element);
 		}
 
 		Element enclosing = element.getEnclosingElement();
 
-		if((kind != ElementKind.CONSTRUCTOR && kind != ElementKind.METHOD)
-				|| !(enclosing instanceof TypeElement)
-				|| !((TypeElement) enclosing).getKind().isClass()) {
+		if ((kind != ElementKind.CONSTRUCTOR && kind != ElementKind.METHOD)
+				|| !(enclosing instanceof TypeElement enclosingClass)
+				|| !enclosing.getKind().isClass()) {
 			throw new PacketCompileException("This element is not allowed to be annotated", element);
 		}
-
-		TypeElement enclosingClass = (TypeElement) enclosing;
 
 		boolean isConstructor = element.getKind() == ElementKind.CONSTRUCTOR;
 		boolean isInstance = !modifiers.contains(Modifier.STATIC);
 
-		if(isInstance) {
-			if(!Collections.disjoint(DISALLOWED_INSTANCE_MODIFIERS, enclosingClass.getModifiers())) {
+		if (isInstance) {
+			if (!Collections.disjoint(DISALLOWED_INSTANCE_MODIFIERS, enclosingClass.getModifiers())) {
 				throw new PacketCompileException("Disallowed modifier on enclosing class", element);
 			}
 
-			if(isConstructor) {
+			if (isConstructor) {
 				return String.format("new %s(%s)", enclosingClass.getQualifiedName(), args);
 			} else {
 				return String.format("new %s().%s(%s)", enclosingClass.getQualifiedName(), element.getSimpleName(), args);
 			}
 		} else {
-			if(!Collections.disjoint(DISALLOWED_STATIC_MODIFIERS, enclosingClass.getModifiers())) {
+			if (!Collections.disjoint(DISALLOWED_STATIC_MODIFIERS, enclosingClass.getModifiers())) {
 				throw new PacketCompileException("Disallowed modifier on enclosing class", element);
 			}
 
@@ -280,28 +297,18 @@ public final class Packet {
 		return priority;
 	}
 
-	public int[] calculatedOrderingIDs(Schema schema) throws PacketCompileException {
-		try {
-			int[] result = new int[orderedBy.length];
-
-			for (int i = 0; i < result.length; i++) {
-				result[i] = schema.idForPacket(orderedBy[i]);
-			}
-
-			return result;
-		} catch (IllegalArgumentException iae) {
-			throw new PacketCompileException(iae.getMessage());
-		}
+	public List<String> orderedBy() {
+		return orderedBy;
 	}
 
-	public boolean isReliable() {
-		return isReliable;
+	public boolean reliable() {
+		return reliable;
 	}
 
-	public String handledBy() {
-		return handledBy;
+	public int minimumVersion() {
+		return minimumVersion;
 	}
-	
+
 	public List<PacketParameter> parameters() {
 		return parameters;
 	}

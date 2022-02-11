@@ -13,7 +13,6 @@ public interface ConverterExpression {
 	/** An expression for reading a parameter from a byte buffer. */
 	String read(PacketParameter parameter, String bufferName);
 	
-	/** An expression returning a NetworkObjectSize object representing the size
-	 * of a parameter. */
+	/** An expression returning the size of a parameter. */
 	String size(PacketParameter parameter);
 }
