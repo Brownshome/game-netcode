@@ -111,6 +111,7 @@ public final class Packet {
 
 		TypeMirror connectionType = types.getDeclaredType(
 				elements.getTypeElement("brownshome.netcode.Connection"),
+				types.getWildcardType(null, null),
 				types.getWildcardType(null, null));
 		TypeMirror versionType = types.getPrimitiveType(TypeKind.INT);
 

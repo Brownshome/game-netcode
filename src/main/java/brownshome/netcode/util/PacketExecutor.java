@@ -9,19 +9,19 @@ import brownshome.netcode.*;
  * Handles the execution of packets, ensuring that no packet is executed out-of-order with respect to its ordering
  * guarantees.
  */
-public final class PacketExecutor extends PacketQueue {
+public final class PacketExecutor extends BitSetPacketQueue {
 	private final Connection<?, ?> connection;
 
 	private record PacketExecution(
 			PacketTypeMap.PacketType type,
 			CompletableFuture<Void> start,
 			CompletableFuture<Void> finish
-	) implements ScheduledItem {
+	) implements ScheduledItem<BitSet> {
 		@Override
-		public boolean processType(BitSet previous) {
+		public ProcessingResult<BitSet> processType(BitSet previous) {
 			assert type.isComplete();
 
-			if (!ScheduledItem.hasBarrier(previous) && !type.waitsFor().intersects(previous)) {
+			if (!BitSetPacketQueue.hasBarrier(previous) && !type.waitsFor().intersects(previous)) {
 				start.complete(null);
 			}
 
@@ -29,7 +29,7 @@ public final class PacketExecutor extends PacketQueue {
 				previous.set(type.id());
 			}
 
-			return finish.isDone();
+			return new ProcessingResult<>(previous, finish.isDone());
 		}
 	}
 

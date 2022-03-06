@@ -61,7 +61,7 @@ public final class ${packet.name()} extends Packet {
 	}
 	
 	@Override
-	public void handle(Connection<?> connection, Schema schema) throws NetworkException {
+	public void handle(Connection<?, ?> connection, Schema schema) throws NetworkException {
 		try {
 			${packet.executionExpression()};
 		} catch (Throwable t) {

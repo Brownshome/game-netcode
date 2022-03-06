@@ -67,12 +67,11 @@ public class UDPConnectionManager extends ConnectionManager<InetSocketAddress, U
 					return;
 				}
 
-				if(remoteAddress == null)
-					continue;
-
-				buffer.flip();
-				getOrCreateConnection(remoteAddress).receive(buffer);
-				buffer.clear();
+				if (remoteAddress != null) {
+					buffer.flip();
+					getOrCreateConnection(remoteAddress).receive(buffer);
+					buffer.clear();
+				}
 			}
 		}, String.format("Port %d UDP listener", address.getPort()));
 

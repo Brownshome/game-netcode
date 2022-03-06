@@ -7,12 +7,14 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import brownshome.netcode.*;
+import brownshome.netcode.util.PacketExecutor;
 
 /**
  * This is a connection that connects two MemoryConnectionManagers
  **/
 public class MemoryConnection extends Connection<MemoryConnectionManager, MemoryConnectionManager> {
 	private final CompletableFuture<Void> readyToSend;
+	private final PacketExecutor packetExecutor;
 	private volatile boolean closed;
 
 	protected MemoryConnection(MemoryConnectionManager manager, MemoryConnectionManager other) {
@@ -20,6 +22,7 @@ public class MemoryConnection extends Connection<MemoryConnectionManager, Memory
 
 		readyToSend = new CompletableFuture<>();
 		closed = false;
+		packetExecutor = new PacketExecutor(this);
 
 		executionWait(readyToSend);
 	}
@@ -95,5 +98,40 @@ public class MemoryConnection extends Connection<MemoryConnectionManager, Memory
 
 		// Flushes don't mind being stacked up, so this should work fine!
 		return CompletableFuture.allOf(executionFlush(), otherConnection().executionFlush());
+	}
+
+	/**
+	 * Executes an incoming packet on the correct handler. This method also ensures that the packet is not executed before
+	 * any packets that should have a happens-before relationship with it for this connection.
+	 * @param packet the packet to execute
+	 * @return a future representing the result of executing the packet
+	 */
+	private CompletableFuture<Void> execute(Packet packet) {
+		return packetExecutor.execute(packet);
+	}
+
+	/**
+	 * Flushes all executing packets
+	 * @return a future that completes when all packets have flushed
+	 */
+	private CompletableFuture<Void> executionFlush() {
+		return packetExecutor.flush();
+	}
+
+	/**
+	 * Causes all executed packets and flushes to wait for a given future
+	 * @param wait the future to wait for
+	 */
+	private void executionWait(CompletableFuture<Void> wait) {
+		packetExecutor.wait(wait);
+	}
+
+	/**
+	 * Inserts an execution barrier
+	 * @param barrier a function that takes a future representing the start of the barrier and returns the end of the barrier
+	 * @return the future representing the end of the barrier
+	 */
+	private CompletableFuture<Void> executionBarrier(UnaryOperator<CompletableFuture<Void>> barrier) {
+		return packetExecutor.barrier(barrier);
 	}
 }

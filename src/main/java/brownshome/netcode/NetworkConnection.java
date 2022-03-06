@@ -2,8 +2,10 @@ package brownshome.netcode;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import brownshome.netcode.util.PacketExecutor;
 import brownshome.netcode.util.PacketSendQueue;
 
 public abstract class NetworkConnection<ADDRESS, CONNECTION_MANAGER extends ConnectionManager<ADDRESS, ?>> extends Connection<ADDRESS, CONNECTION_MANAGER> {
@@ -41,7 +43,15 @@ public abstract class NetworkConnection<ADDRESS, CONNECTION_MANAGER extends Conn
 		return sendQueue.send(packet);
 	}
 
-	public record SendResult(CompletableFuture<Void> sent, CompletableFuture<Void> received) { }
+	public record SendResult(CompletableFuture<Void> sent, CompletableFuture<Void> received) {
+		public static SendResult newUnreliable() {
+			return new SendResult(new CompletableFuture<>(), null);
+		}
+
+		public static SendResult newReliable() {
+			return new SendResult(new CompletableFuture<>(), new CompletableFuture<>());
+		}
+	}
 	/**
 	 * This is the method that is used to send packets internally. Override this.
 	 * @see #send(Packet)

@@ -13,11 +13,11 @@ public final class PacketTypeMap {
 			this(id, null);
 		}
 
-		boolean isComplete() {
+		public boolean isComplete() {
 			return waitsFor != null;
 		}
 
-		PacketType complete(BitSet waits) {
+		private PacketType complete(BitSet waits) {
 			assert !isComplete();
 
 			return new PacketType(id, waits);

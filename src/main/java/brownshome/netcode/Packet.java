@@ -25,7 +25,7 @@ public abstract class Packet implements Networkable {
 	 * @param connection the connection that this packet was received on
 	 * @param schema the schema that is currently being used for this connection
 	 **/
-	public abstract void handle(Connection<?> connection, Schema schema) throws NetworkException;
+	public abstract void handle(Connection<?, ?> connection, Schema schema) throws NetworkException;
 	
 	/**
 	 * Returns an ID for this packet. This ID must be unique per schema. The IDs should be allocated starting from 0 incrementing for each packet.

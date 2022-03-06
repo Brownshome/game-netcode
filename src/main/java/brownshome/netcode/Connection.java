@@ -2,15 +2,12 @@ package brownshome.netcode;
 
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.function.UnaryOperator;
 
 import brownshome.netcode.util.PacketExecutor;
 
 public abstract class Connection<ADDRESS, CONNECTION_MANAGER extends ConnectionManager<ADDRESS, ?>> implements AutoCloseable {
 	private final CONNECTION_MANAGER connectionManager;
 	private final ADDRESS address;
-
-	private final PacketExecutor packetExecutor;
 
 	private Protocol protocol;
 
@@ -22,42 +19,6 @@ public abstract class Connection<ADDRESS, CONNECTION_MANAGER extends ConnectionM
 
 		// Note: This field is non-final and so needs synchronisation if it is read post-construction in another thread
 		this.protocol = initialProtocol;
-		this.packetExecutor = new PacketExecutor(this);
-	}
-
-	/**
-	 * Executes an incoming packet on the correct handler. This method also ensures that the packet is not executed before
-	 * any packets that should have a happens-before relationship with it for this connection.
-	 * @param packet the packet to execute
-	 * @return a future representing the result of executing the packet
-	 */
-	protected CompletableFuture<Void> execute(Packet packet) {
-		return packetExecutor.execute(packet);
-	}
-
-	/**
-	 * Flushes all executing packets
-	 * @return a future that completes when all packets have flushed
-	 */
-	protected final CompletableFuture<Void> executionFlush() {
-		return packetExecutor.flush();
-	}
-
-	/**
-	 * Causes all executed packets and flushes to wait for a given future
-	 * @param wait the future to wait for
-	 */
-	protected final void executionWait(CompletableFuture<Void> wait) {
-		packetExecutor.wait(wait);
-	}
-
-	/**
-	 * Inserts an execution barrier
-	 * @param barrier a function that takes a future representing the start of the barrier and returns the end of the barrier
-	 * @return the future representing the end of the barrier
-	 */
-	protected final CompletableFuture<Void> executionBarrier(UnaryOperator<CompletableFuture<Void>> barrier) {
-		return packetExecutor.barrier(barrier);
 	}
 
 	/**

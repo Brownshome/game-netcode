@@ -8,10 +8,10 @@ import brownshome.netcode.NetworkConnection;
 import brownshome.netcode.Packet;
 
 /**
- * Dispatches packets for sending base on when they have already been published into an aggregate packet. This queue
+ * Dispatches packets for sending based on when they have already been published into an aggregate packet. This queue
  * also tracks reliable packet reception for the purposes of flushing.
  */
-public final class PacketSendQueue extends PacketQueue {
+public final class PacketSendQueue extends BitSetPacketQueue {
 	private static final int RELIABLE_ID = 1;
 
 	private final NetworkConnection<?, ?> connection;
@@ -23,7 +23,7 @@ public final class PacketSendQueue extends PacketQueue {
 		this.connection = connection;
 	}
 
-	private static class PacketSend implements ScheduledItem {
+	private static class PacketSend implements ScheduledItem<BitSet> {
 		final PacketTypeMap.PacketType type;
 		final CompletableFuture<Void> queueForSending;
 		final CompletableFuture<Void> sent;
@@ -37,10 +37,10 @@ public final class PacketSendQueue extends PacketQueue {
 		}
 
 		@Override
-		public boolean processType(BitSet previous) {
+		public ProcessingResult<BitSet> processType(BitSet previous) {
 			assert type.isComplete();
 
-			if (!ScheduledItem.hasBarrier(previous) && !type.waitsFor().intersects(previous)) {
+			if (!hasBarrier(previous) && !type.waitsFor().intersects(previous)) {
 				queueForSending.complete(null);
 			}
 
@@ -48,7 +48,7 @@ public final class PacketSendQueue extends PacketQueue {
 				previous.set(type.id());
 			}
 
-			return sent.isDone();
+			return new ProcessingResult<>(previous, sent.isDone());
 		}
 	}
 
@@ -64,13 +64,13 @@ public final class PacketSendQueue extends PacketQueue {
 		}
 
 		@Override
-		public boolean processType(BitSet previous) {
+		public ProcessingResult<BitSet> processType(BitSet previous) {
 			if (!received.isDone()) {
 				// Flushes and barriers will now wait for reliable packets to complete
 				previous.set(RELIABLE_ID);
 			}
 
-			return super.processType(previous) && received.isDone();
+			return new ProcessingResult<>(previous, super.processType(previous).shouldRemove() && received.isDone());
 		}
 	}
 

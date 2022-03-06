@@ -43,7 +43,7 @@ final class UDPPackets {
 	 */
 	// Client to Server
 	@DefinePacket
-	public static void connect(@ConnectionParam Connection<?> connection, long clientSalt, @UseConverter(Padding.class) Void unused) {
+	public static void connect(@ConnectionParam Connection<?, ?> connection, long clientSalt, @UseConverter(Padding.class) Void unused) {
 		UDPConnection udpConnection;
 
 		try {
@@ -58,7 +58,7 @@ final class UDPPackets {
 	// Server to Client
 	// Hash should equal hash(clientSalt)
 	@DefinePacket
-	public static void connectionDenied(@ConnectionParam Connection<?> connection, int hash) {
+	public static void connectionDenied(@ConnectionParam Connection<?, ?> connection, int hash) {
 		UDPConnection udpConnection;
 
 		try {
@@ -82,7 +82,7 @@ final class UDPPackets {
 	 * @param hash is hash(clientSalt + serverSalt)
 	 */
 	@DefinePacket
-	public static void challenge(@ConnectionParam Connection<?> connection, int hash, long serverSalt) {
+	public static void challenge(@ConnectionParam Connection<?, ?> connection, int hash, long serverSalt) {
 		UDPConnection udpConnection;
 
 		try {
@@ -125,13 +125,15 @@ final class UDPPackets {
 	 *
 	 * The buffer will be consumer in this process
 	 */
-	public static int hashDataPacket(long remoteSalt, int mostRecentAck, int acks, int sequenceNumber, ByteBuffer messages) {
+	public static int hashDataPacket(long remoteSalt, Acknowledgement acknowledgement,
+	                                 int sequenceNumber, int olderRequiredPackets, ByteBuffer messages) {
 		CRC32 crc = new CRC32();
 
 		update(crc, remoteSalt);
-		update(crc, mostRecentAck);
-		update(crc, acks);
+		update(crc, acknowledgement.oldestAcknowledgement());
+		update(crc, acknowledgement.acknowledgement());
 		update(crc, sequenceNumber);
+		update(crc, olderRequiredPackets);
 
 		crc.update(messages);
 
@@ -158,18 +160,20 @@ final class UDPPackets {
 	}
 
 	/**
-	 * This method represents the data packet type that will be sent across a UDP connection.
-	 *
-	 * Each packet is made up of a hash, a sequence number, an integer that says what packets have been acked, and the packet
-	 * content.
-	 *
-	 * Each packet content will contain X messages, where each message is a full packet.
-	 *
-	 * The acks are per UDPData packet. Sequence numbers are used for packet identification. If two packets with the same sequence number are received, then one will be discarded.
+	 * A packet of UDP data
+	 * @param connection the connection
+	 * @param hash a hash of the local salt and all other fields
+	 * @param acknowledgement previous acknowledgements
+	 * @param sequenceNumber the sequence number of this packet
+	 * @param olderRequiredPackets older sequence numbers that need to be received before this packet can be received
+	 * @param messages the data in the packet
 	 */
 	@DefinePacket
-	public static void udpData(@ConnectionParam Connection<?> connection, int hash, int mostRecentAck, int acks,
-							   int sequenceNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer messages) {
+	public static void udpData(@ConnectionParam Connection<?, ?> connection,
+	                           int hash,
+	                           Acknowledgement acknowledgement,
+							   int sequenceNumber, int olderRequiredPackets,
+							   @UseConverter(TrailingByteBufferConverter.class) ByteBuffer messages) {
 
 		if (!(connection instanceof UDPConnection udpConnection)) {
 			throw  new IllegalStateException("'UDPData' can only be received by a UDP connection");
@@ -177,65 +181,22 @@ final class UDPPackets {
 
 		long localSalt = udpConnection.localSalt();
 
-		int digest = hashDataPacket(localSalt, mostRecentAck, acks, sequenceNumber, messages.duplicate());
+		int digest = hashDataPacket(localSalt, acknowledgement, sequenceNumber, olderRequiredPackets, messages.duplicate());
 
 		if (hash != digest) {
 			// Ignore the packet, this is corrupt, or malicious
 			LOGGER.log(System.Logger.Level.INFO, "Corrupt packet received from '" + connection.address() + "'");
 		} else {
-			udpConnection.receiveAcks(new Ack(mostRecentAck, acks));
-
-			if (messages.remaining() == 0) {
-				// Ack only packet, don't receive the SEQ
-				// TODO make this a separate packet?
-				return;
+			for (int i : acknowledgement) {
+				udpConnection.receiveAcknowledgement(i);
 			}
 
-			if (!udpConnection.receiveSequenceNumber(sequenceNumber)) {
+			if (!udpConnection.onSequenceNumberReceived(sequenceNumber, messages.hasRemaining())) {
 				LOGGER.log(System.Logger.Level.DEBUG, "Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
 				return;
 			}
 
-			udpConnection.receiveBlockOfMessages(sequenceNumber, messages);
-		}
-	}
-
-	/**
-	 * This is called when a fragment arrives, the ack and hashes are the same as the UDP data packets, and they follow the same system.
-	 *
-	 * Fragments are sent with a size of 1024 Bytes of fragment data, the fragmentNumber is the place that this fragment goes in the re-assembly buffer. FragmentSetID determines which
-	 * set of fragments this one is a part of.
-	 */
-	@DefinePacket
-	public static void udpFragment(@ConnectionParam Connection<?> connection, int hash, int acks, int sequenceNumber, byte fragmentSetID,
-	                               short fragmentNumber, @UseConverter(TrailingByteBufferConverter.class) ByteBuffer fragmentData) {
-		// TODO most recent ack.
-
-		if (!(connection instanceof UDPConnection udpConnection)) {
-			throw  new IllegalStateException("'UDPFragment' can only be received by a UDP connection");
-		}
-
-		long localSalt = udpConnection.localSalt();
-
-		CRC32 crc = new CRC32();
-		update(crc, localSalt);
-		update(crc, acks);
-		update(crc, sequenceNumber);
-		crc.update(fragmentData.duplicate());
-		int digest = (int) crc.getValue();
-
-		if (hash != digest) {
-			//Ignore the packet, this is corrupt, or malicious
-			LOGGER.log(System.Logger.Level.INFO, "Corrupt fragment received from '" + connection.address() + "'");
-		} else {
-			udpConnection.receiveAcks(new Ack(sequenceNumber, acks));
-
-			if (!udpConnection.receiveSequenceNumber(sequenceNumber)) {
-				LOGGER.log(System.Logger.Level.DEBUG, "Rejected duplicate message " + sequenceNumber + " from '" + connection.address() + "'");
-				return;
-			}
-
-			udpConnection.receiveFragment(sequenceNumber, Byte.toUnsignedInt(fragmentSetID), Short.toUnsignedInt(fragmentNumber), fragmentData);
+			udpConnection.receiveMessages(sequenceNumber, olderRequiredPackets, messages);
 		}
 	}
 }
